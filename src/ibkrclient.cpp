@@ -76,7 +76,7 @@ void IBKRClient::connect(const QString& host, int port, int clientId)
         qDebug() << "Connection initiated";
     } else {
         qDebug() << "Connection failed";
-        emit error(-1, -1, "Failed to connect to TWS");
+        // Don't emit error here - detailed error will come from IBKRWrapper
         m_reconnectTimer->start();
     }
 }

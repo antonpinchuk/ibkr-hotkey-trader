@@ -7,24 +7,27 @@
 #include <QApplication>
 
 QMap<QString, ToastNotification*> ToastNotification::s_activeToasts;
+QList<ToastNotification*> ToastNotification::s_toastList;
 
 ToastNotification::ToastNotification(QWidget *parent)
     : QWidget(parent, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint)
     , m_type(Info)
 {
     setAttribute(Qt::WA_ShowWithoutActivating);
-    setMinimumHeight(60);
-    setMinimumWidth(300);
-    setMaximumWidth(500);
+    setAttribute(Qt::WA_DeleteOnClose);
+    setFixedWidth(400);
 
     m_label = new QLabel(this);
     m_label->setWordWrap(true);
-    m_label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    m_label->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     m_label->setTextFormat(Qt::PlainText);
+    m_label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Minimum);
+    m_label->setFixedWidth(370);
 
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->addWidget(m_label);
-    layout->setContentsMargins(15, 10, 15, 10);
+    layout->setContentsMargins(15, 15, 15, 15);
+    layout->setSizeConstraint(QLayout::SetMinimumSize);
 
     m_timer = new QTimer(this);
     m_timer->setSingleShot(true);
@@ -47,9 +50,24 @@ void ToastNotification::show(QWidget *parent, const QString &message, Type type)
         }
     }
 
+    // Close all existing toasts to avoid clutter
+    closeAllToasts();
+
     ToastNotification *toast = new ToastNotification(parent);
     toast->showMessage(message, type);
     s_activeToasts[message] = toast;
+    s_toastList.append(toast);
+}
+
+void ToastNotification::closeAllToasts()
+{
+    // Close all existing toasts
+    for (ToastNotification *toast : s_toastList) {
+        if (toast && toast->isVisible()) {
+            toast->close();
+        }
+    }
+    s_toastList.clear();
 }
 
 void ToastNotification::showMessage(const QString &message, Type type)
@@ -88,10 +106,15 @@ void ToastNotification::showMessage(const QString &message, Type type)
         "   color: %2; "
         "   font-size: 13px; "
         "   background-color: transparent; "
+        "   padding: 0px; "
         "}"
     ).arg(bgColor, textColor, borderColor));
 
-    adjustSize();
+    // Calculate proper height based on text
+    m_label->adjustSize();
+    int labelHeight = m_label->sizeHint().height();
+    int totalHeight = labelHeight + 30; // 30 for margins
+    setFixedHeight(totalHeight);
 
     // Position at bottom-right of parent
     if (parentWidget()) {
@@ -124,6 +147,7 @@ void ToastNotification::fadeOut()
 void ToastNotification::onDestroyed()
 {
     s_activeToasts.remove(m_message);
+    s_toastList.removeAll(this);
 }
 
 void ToastNotification::mousePressEvent(QMouseEvent *event)

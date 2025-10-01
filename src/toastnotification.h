@@ -30,8 +30,10 @@ private slots:
 
 private:
     void showMessage(const QString &message, Type type);
+    static void closeAllToasts();
 
     static QMap<QString, ToastNotification*> s_activeToasts;
+    static QList<ToastNotification*> s_toastList;
 
     QLabel *m_label;
     QTimer *m_timer;

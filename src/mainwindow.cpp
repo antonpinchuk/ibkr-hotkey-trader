@@ -398,6 +398,16 @@ void MainWindow::onDisconnected()
 
 void MainWindow::onError(int id, int code, const QString& message)
 {
+    // Filter out informational TWS status messages (not actual errors)
+    // 2104-2110: Market data farm connection status
+    // 2158: Sec-def data farm connection status
+    if (code >= 2104 && code <= 2110) {
+        return; // Ignore market data farm status messages
+    }
+    if (code == 2158) {
+        return; // Ignore sec-def data farm status messages
+    }
+
     showToast(QString("Error %1: %2").arg(code).arg(message), "error");
 }
 
