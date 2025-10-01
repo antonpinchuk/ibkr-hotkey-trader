@@ -71,10 +71,8 @@ void UIState::createTables()
     // Splitter state table
     QString createSplitterTable = R"(
         CREATE TABLE IF NOT EXISTS splitter_state (
-            id INTEGER PRIMARY KEY,
-            left_width INTEGER,
-            center_width INTEGER,
-            right_width INTEGER
+            splitter_name TEXT PRIMARY KEY,
+            sizes TEXT
         )
     )";
 
@@ -143,49 +141,55 @@ QRect UIState::restoreWindowGeometry(bool& isMaximized, QString& screenName)
     return QRect(100, 100, 1400, 800);
 }
 
-void UIState::saveSplitterSizes(const QList<int>& sizes)
+void UIState::saveSplitterSizes(const QString& splitterName, const QList<int>& sizes)
 {
-    if (sizes.size() != 3) {
-        qWarning() << "Expected 3 splitter sizes, got" << sizes.size();
-        return;
-    }
-
     QSqlQuery query(m_db);
 
+    // Convert sizes to comma-separated string
+    QStringList sizeStrings;
+    for (int size : sizes) {
+        sizeStrings << QString::number(size);
+    }
+    QString sizesStr = sizeStrings.join(",");
+
     // Delete existing record
-    query.prepare("DELETE FROM splitter_state WHERE id = 1");
+    query.prepare("DELETE FROM splitter_state WHERE splitter_name = :splitter_name");
+    query.bindValue(":splitter_name", splitterName);
     query.exec();
 
     // Insert new record
     query.prepare(R"(
-        INSERT INTO splitter_state (id, left_width, center_width, right_width)
-        VALUES (1, :left_width, :center_width, :right_width)
+        INSERT INTO splitter_state (splitter_name, sizes)
+        VALUES (:splitter_name, :sizes)
     )");
 
-    query.bindValue(":left_width", sizes[0]);
-    query.bindValue(":center_width", sizes[1]);
-    query.bindValue(":right_width", sizes[2]);
+    query.bindValue(":splitter_name", splitterName);
+    query.bindValue(":sizes", sizesStr);
 
     if (!query.exec()) {
         qWarning() << "Failed to save splitter state:" << query.lastError().text();
     }
 }
 
-QList<int> UIState::restoreSplitterSizes()
+QList<int> UIState::restoreSplitterSizes(const QString& splitterName)
 {
     QSqlQuery query(m_db);
-    query.prepare("SELECT left_width, center_width, right_width FROM splitter_state WHERE id = 1");
+    query.prepare("SELECT sizes FROM splitter_state WHERE splitter_name = :splitter_name");
+    query.bindValue(":splitter_name", splitterName);
 
     if (query.exec() && query.next()) {
+        QString sizesStr = query.value(0).toString();
+        QStringList sizeStrings = sizesStr.split(",");
+
         QList<int> sizes;
-        sizes << query.value(0).toInt();
-        sizes << query.value(1).toInt();
-        sizes << query.value(2).toInt();
+        for (const QString& sizeStr : sizeStrings) {
+            sizes << sizeStr.toInt();
+        }
         return sizes;
     }
 
-    // Default sizes if not found (proportions: 1:4:2)
-    return QList<int>() << 200 << 800 << 400;
+    // Return empty list if not found - caller will use defaults
+    return QList<int>();
 }
 
 void UIState::saveTableColumnWidths(const QString& tableName, const QList<int>& widths)

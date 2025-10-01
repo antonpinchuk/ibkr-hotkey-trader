@@ -27,6 +27,8 @@ MainWindow::MainWindow(QWidget *parent)
     , m_settingsButton(nullptr)
     , m_toolbar(nullptr)
     , m_mainSplitter(nullptr)
+    , m_rightSplitter(nullptr)
+    , m_rightBottomSplitter(nullptr)
     , m_tickerList(nullptr)
     , m_chart(nullptr)
     , m_orderHistory(nullptr)
@@ -217,9 +219,8 @@ void MainWindow::setupToolbar()
     m_toolbar = new QToolBar(this);
     m_toolbar->setMovable(false);
     m_toolbar->setFloatable(false);
-    m_toolbar->setFixedHeight(46);  // Same height as ticker label
+    m_toolbar->setFixedHeight(46);
     m_toolbar->setStyleSheet("QToolBar { padding: 2px; }");
-    addToolBar(Qt::TopToolBarArea, m_toolbar);
 
     // Center: Trading buttons with labels
     QLabel* openLabel = new QLabel(" Open: ", this);
@@ -328,13 +329,26 @@ void MainWindow::setupPanels()
     m_chart = new ChartWidget(this);
     m_orderHistory = new OrderHistoryWidget(this);
 
+    // Bottom-right splitter: chart | order history (horizontal split)
+    m_rightBottomSplitter = new QSplitter(Qt::Horizontal, this);
+    m_rightBottomSplitter->addWidget(m_chart);
+    m_rightBottomSplitter->addWidget(m_orderHistory);
+    m_rightBottomSplitter->setStretchFactor(0, 2);  // Chart - wider
+    m_rightBottomSplitter->setStretchFactor(1, 1);  // Orders - narrower
+
+    // Right splitter: toolbar / (chart + orders) (vertical split)
+    m_rightSplitter = new QSplitter(Qt::Vertical, this);
+    m_rightSplitter->addWidget(m_toolbar);
+    m_rightSplitter->addWidget(m_rightBottomSplitter);
+    m_rightSplitter->setStretchFactor(0, 0);  // Toolbar - fixed height
+    m_rightSplitter->setStretchFactor(1, 1);  // Bottom - fills remaining space
+
+    // Main splitter: ticker list | everything else (horizontal split)
     m_mainSplitter = new QSplitter(Qt::Horizontal, this);
     m_mainSplitter->addWidget(m_tickerList);
-    m_mainSplitter->addWidget(m_chart);
-    m_mainSplitter->addWidget(m_orderHistory);
-    m_mainSplitter->setStretchFactor(0, 1);  // Left panel - narrow
-    m_mainSplitter->setStretchFactor(1, 4);  // Chart - wide
-    m_mainSplitter->setStretchFactor(2, 2);  // Right panel - medium
+    m_mainSplitter->addWidget(m_rightSplitter);
+    m_mainSplitter->setStretchFactor(0, 0);  // Ticker list - narrow
+    m_mainSplitter->setStretchFactor(1, 1);  // Right panel - fills remaining space
 
     setCentralWidget(m_mainSplitter);
 }
@@ -656,9 +670,30 @@ void MainWindow::restoreUIState()
         showMaximized();
     }
 
-    // Restore splitter state
-    QList<int> sizes = uiState.restoreSplitterSizes();
-    m_mainSplitter->setSizes(sizes);
+    // Restore splitter states
+    QList<int> mainSizes = uiState.restoreSplitterSizes("main");
+    if (!mainSizes.isEmpty()) {
+        m_mainSplitter->setSizes(mainSizes);
+    } else {
+        // Default: ticker list 200px, rest takes remaining space
+        m_mainSplitter->setSizes(QList<int>() << 200 << 1200);
+    }
+
+    QList<int> rightSizes = uiState.restoreSplitterSizes("right");
+    if (!rightSizes.isEmpty()) {
+        m_rightSplitter->setSizes(rightSizes);
+    } else {
+        // Default: toolbar 46px (fixed), rest takes remaining space
+        m_rightSplitter->setSizes(QList<int>() << 46 << 754);
+    }
+
+    QList<int> rightBottomSizes = uiState.restoreSplitterSizes("right_bottom");
+    if (!rightBottomSizes.isEmpty()) {
+        m_rightBottomSplitter->setSizes(rightBottomSizes);
+    } else {
+        // Default: chart 800px, orders 400px
+        m_rightBottomSplitter->setSizes(QList<int>() << 800 << 400);
+    }
 }
 
 void MainWindow::saveUIState()
@@ -677,9 +712,10 @@ void MainWindow::saveUIState()
 
     uiState.saveWindowGeometry(geometry, isMaximized, screenName);
 
-    // Save splitter state
-    QList<int> sizes = m_mainSplitter->sizes();
-    uiState.saveSplitterSizes(sizes);
+    // Save all splitter states
+    uiState.saveSplitterSizes("main", m_mainSplitter->sizes());
+    uiState.saveSplitterSizes("right", m_rightSplitter->sizes());
+    uiState.saveSplitterSizes("right_bottom", m_rightBottomSplitter->sizes());
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)

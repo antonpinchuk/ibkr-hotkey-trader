@@ -18,8 +18,8 @@ public:
     QRect restoreWindowGeometry(bool& isMaximized, QString& screenName);
 
     // Splitter state
-    void saveSplitterSizes(const QList<int>& sizes);
-    QList<int> restoreSplitterSizes();
+    void saveSplitterSizes(const QString& splitterName, const QList<int>& sizes);
+    QList<int> restoreSplitterSizes(const QString& splitterName);
 
     // Table column widths
     void saveTableColumnWidths(const QString& tableName, const QList<int>& widths);

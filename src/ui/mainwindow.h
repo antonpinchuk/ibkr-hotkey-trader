@@ -95,7 +95,9 @@ private:
     QPushButton *m_btnClose100;
 
     QToolBar *m_toolbar;
-    QSplitter *m_mainSplitter;
+    QSplitter *m_mainSplitter;        // Left: ticker list, Right: everything else
+    QSplitter *m_rightSplitter;       // Top: toolbar, Bottom: chart + orders
+    QSplitter *m_rightBottomSplitter; // Left: chart, Right: orders
 
     // Widgets
     TickerListWidget *m_tickerList;
