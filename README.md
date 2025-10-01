@@ -1,6 +1,8 @@
 # IBKR Hotkey Trader
 
-A fast trading application for Interactive Brokers using keyboard hotkeys for rapid execution via the TWS API.
+A reactive hotkey trading application for **Interactive Brokers**, enabling rapid order execution and intraday trading via the TWS API with real-time market data (subscription required).
+
+![IBKR Hotkey Trader](doc/images/screenshot-mainwindow.png)
 
 ## Features
 
@@ -36,8 +38,17 @@ sudo apt install cmake qt6-base-dev protobuf-compiler libprotobuf-dev libabsl-de
 - Install vcpkg and run: `vcpkg install protobuf abseil`
 
 ### Interactive Brokers Setup
-1. **TWS (Trader Workstation)** or **IB Gateway** installed and running
-2. Enable API connections in TWS:
+1. **Market Data Subscription** (required for real-time data):
+   - Log in to your IBKR account portal
+   - Go to **Account Management → Market Data Subscriptions**
+   - Subscribe to a market data package, for example:
+     - **US Securities Snapshot and Futures Value Bundle (NP,L1)** - $10/month
+     - Or other packages based on your trading needs
+   - Without a subscription, the app will not receive real-time price updates
+
+2. **TWS (Trader Workstation)** or **IB Gateway** installed and running
+
+3. Enable API connections in TWS:
    - Go to **File → Global Configuration → API → Settings**
    - Check **Enable ActiveX and Socket Clients**
    - Check **Allow connections from localhost only** (recommended for security)
@@ -151,6 +162,8 @@ The application will attempt to connect to TWS automatically.
 6. Use `Cmd+Z/X/C/V` to close position (partial or full)
 7. All trades for the day are tracked in the history panel
 
+To start over use `File → Reset Session` or restart the app.
+
 ### Safety Features
 - Cannot exceed 100% of budget (warning toast)
 - Budget validation against account balance
@@ -163,16 +176,10 @@ The application will attempt to connect to TWS automatically.
 ### Main Window Layout
 - **Top Toolbar**: Current ticker, quick action buttons, settings
 - **Left Panel**: Today's ticker list with live prices and % change
+  - Click ticker to load chart (switch symbol locked when you have open position)
+  - Right-click ticker to move it to top
 - **Center**: Real-time 10-second candlestick chart
 - **Right Panel**: Order history and session statistics
-
-### Statistics Panel
-Shows real-time daily performance:
-- Total Account Balance
-- Total P&L ($ and %)
-- Win Rate
-- Number of Trades
-- Largest Win/Loss
 
 ## Troubleshooting
 
@@ -199,16 +206,33 @@ Shows real-time daily performance:
 ```
 ibkr-hotkey-trader/
 ├── src/
-│   ├── main.cpp              # Application entry
-│   ├── mainwindow.h/cpp      # Main window UI
-│   ├── ibkrclient.h/cpp      # TWS API client
-│   ├── ibkrwrapper.h/cpp     # TWS API callbacks
-│   ├── tradingmanager.h/cpp  # Trading logic
-│   ├── chartwidget.h/cpp     # Chart component
-│   ├── settingsdialog.h/cpp  # Settings dialog
-│   └── ...                   # Other components
+│   ├── main.cpp                          # Application entry
+│   ├── client/
+│   │   ├── ibkrclient.h/cpp              # TWS API client
+│   │   └── ibkrwrapper.h/cpp             # TWS API callbacks
+│   ├── ui/
+│   │   ├── mainwindow.h/cpp              # Main window UI
+│   │   └── toastnotification.h/cpp       # Toast notification widget
+│   ├── widgets/
+│   │   ├── chartwidget.h/cpp             # Chart component
+│   │   ├── orderhistorywidget.h/cpp      # Order history panel
+│   │   ├── tickerlistwidget.h/cpp        # Ticker list panel
+│   │   └── tickeritemdelegate.h/cpp      # Ticker list item delegate
+│   ├── dialogs/
+│   │   ├── settingsdialog.h/cpp          # Settings dialog
+│   │   └── symbolsearchdialog.h/cpp      # Symbol search dialog
+│   ├── trading/
+│   │   └── tradingmanager.h/cpp          # Trading logic
+│   ├── models/
+│   │   ├── order.h/cpp                   # Order data model
+│   │   ├── settings.h/cpp                # Settings data model
+│   │   └── uistate.h/cpp                 # UI state model
+│   └── bid_stub.cpp                      # Bid generation stub
 ├── external/
-│   └── tws-api/              # TWS API (download separately)
+│   └── twsapi/                           # TWS API (download separately)
+├── doc/
+│   ├── REQUIREMENTS.md                   # Project requirements
+│   └── TODO.md                           # Development progress
 ├── CMakeLists.txt
 └── README.md
 ```
