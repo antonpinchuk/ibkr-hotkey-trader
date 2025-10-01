@@ -65,7 +65,7 @@ void Settings::initDatabase()
 
 void Settings::initDefaults()
 {
-    m_budget = 10000.0;
+    m_budget = 1000.0;
     m_askOffset = 10;
     m_bidOffset = 10;
 
@@ -165,7 +165,7 @@ void Settings::setValue(const QString& key, const QString& value)
 void Settings::load()
 {
     m_account = getValue("account", "");
-    m_budget = getValue("budget", "10000.0").toDouble();
+    m_budget = getValue("budget", "1000.0").toDouble();
     m_askOffset = getValue("ask_offset", "10").toInt();
     m_bidOffset = getValue("bid_offset", "10").toInt();
 

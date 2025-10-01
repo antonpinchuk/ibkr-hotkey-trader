@@ -32,6 +32,24 @@ private:
     QSpinBox *m_askOffsetSpin;
     QSpinBox *m_bidOffsetSpin;
 
+    // Hotkeys tab
+    QSpinBox *m_hotkeyOpen100;
+    QSpinBox *m_hotkeyOpen50;
+    QSpinBox *m_hotkeyAdd1;
+    QSpinBox *m_hotkeyAdd2;
+    QSpinBox *m_hotkeyAdd3;
+    QSpinBox *m_hotkeyAdd4;
+    QSpinBox *m_hotkeyAdd5;
+    QSpinBox *m_hotkeyAdd6;
+    QSpinBox *m_hotkeyAdd7;
+    QSpinBox *m_hotkeyAdd8;
+    QSpinBox *m_hotkeyAdd9;
+    QSpinBox *m_hotkeyAdd0;
+    QSpinBox *m_hotkeyClose100;
+    QSpinBox *m_hotkeyClose75;
+    QSpinBox *m_hotkeyClose50;
+    QSpinBox *m_hotkeyClose25;
+
     // Connection tab
     QLineEdit *m_hostEdit;
     QSpinBox *m_portSpin;
