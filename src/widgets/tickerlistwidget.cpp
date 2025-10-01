@@ -15,8 +15,8 @@ TickerListWidget::TickerListWidget(QWidget *parent)
     m_tickerLabel->setStyleSheet("QLabel { font-size: 16px; font-weight: bold; padding: 10px; background-color: #F5F5F5; border-bottom: 1px solid #DDD; }");
     m_tickerLabel->setAlignment(Qt::AlignCenter);
     m_tickerLabel->setCursor(Qt::PointingHandCursor);
-    m_tickerLabel->setMinimumHeight(45);
-    m_tickerLabel->setMaximumHeight(45);
+    m_tickerLabel->setMinimumHeight(46);
+    m_tickerLabel->setMaximumHeight(46);
     layout->addWidget(m_tickerLabel);
 
     // Make label clickable

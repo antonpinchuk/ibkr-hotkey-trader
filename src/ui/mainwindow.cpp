@@ -217,81 +217,98 @@ void MainWindow::setupToolbar()
     m_toolbar = new QToolBar(this);
     m_toolbar->setMovable(false);
     m_toolbar->setFloatable(false);
-    m_toolbar->setFixedHeight(45);  // Same height as ticker label
+    m_toolbar->setFixedHeight(46);  // Same height as ticker label
+    m_toolbar->setStyleSheet("QToolBar { padding: 2px; }");
     addToolBar(Qt::TopToolBarArea, m_toolbar);
 
-    // Center: Trading buttons
-    m_btnOpen100 = new QPushButton("Open 100%", this);
-    m_btnOpen100->setMinimumWidth(100);
+    // Center: Trading buttons with labels
+    QLabel* openLabel = new QLabel(" Open: ", this);
+    m_toolbar->addWidget(openLabel);
+
+    m_btnOpen100 = new QPushButton("100%", this);
+    m_btnOpen100->setMinimumWidth(60);
     m_toolbar->addWidget(m_btnOpen100);
     connect(m_btnOpen100, &QPushButton::clicked, this, &MainWindow::onOpen100);
 
-    m_btnOpen50 = new QPushButton("Open 50%", this);
+    m_btnOpen50 = new QPushButton("50%", this);
     m_toolbar->addWidget(m_btnOpen50);
     connect(m_btnOpen50, &QPushButton::clicked, this, &MainWindow::onOpen50);
 
     m_btnAdd5 = new QPushButton("+5%", this);
+    m_btnAdd5->setStyleSheet("QPushButton { padding: 4px 4px 4px 4px; }");
     m_toolbar->addWidget(m_btnAdd5);
     connect(m_btnAdd5, &QPushButton::clicked, this, &MainWindow::onAdd5);
 
     m_btnAdd10 = new QPushButton("+10%", this);
+    m_btnAdd10->setStyleSheet("QPushButton { padding: 4px 4px 4px 4px; }");
     m_toolbar->addWidget(m_btnAdd10);
     connect(m_btnAdd10, &QPushButton::clicked, this, &MainWindow::onAdd10);
 
     m_btnAdd15 = new QPushButton("+15%", this);
+    m_btnAdd15->setStyleSheet("QPushButton { padding: 4px 4px 4px 4px; }");
     m_toolbar->addWidget(m_btnAdd15);
     connect(m_btnAdd15, &QPushButton::clicked, this, &MainWindow::onAdd15);
 
     m_btnAdd20 = new QPushButton("+20%", this);
+    m_btnAdd20->setStyleSheet("QPushButton { padding: 4px 4px 4px 4px; }");
     m_toolbar->addWidget(m_btnAdd20);
     connect(m_btnAdd20, &QPushButton::clicked, this, &MainWindow::onAdd20);
 
     m_btnAdd25 = new QPushButton("+25%", this);
+    m_btnAdd25->setStyleSheet("QPushButton { padding: 4px 4px 4px 4px; }");
     m_toolbar->addWidget(m_btnAdd25);
     connect(m_btnAdd25, &QPushButton::clicked, this, &MainWindow::onAdd25);
 
     m_btnAdd30 = new QPushButton("+30%", this);
+    m_btnAdd30->setStyleSheet("QPushButton { padding: 4px 4px 4px 4px; }");
     m_toolbar->addWidget(m_btnAdd30);
     connect(m_btnAdd30, &QPushButton::clicked, this, &MainWindow::onAdd30);
 
     m_btnAdd35 = new QPushButton("+35%", this);
+    m_btnAdd35->setStyleSheet("QPushButton { padding: 4px 4px 4px 4px; }");
     m_toolbar->addWidget(m_btnAdd35);
     connect(m_btnAdd35, &QPushButton::clicked, this, &MainWindow::onAdd35);
 
     m_btnAdd40 = new QPushButton("+40%", this);
+    m_btnAdd40->setStyleSheet("QPushButton { padding: 4px 4px 4px 4px; }");
     m_toolbar->addWidget(m_btnAdd40);
     connect(m_btnAdd40, &QPushButton::clicked, this, &MainWindow::onAdd40);
 
     m_btnAdd45 = new QPushButton("+45%", this);
+    m_btnAdd45->setStyleSheet("QPushButton { padding: 4px 4px 4px 4px; }");
     m_toolbar->addWidget(m_btnAdd45);
     connect(m_btnAdd45, &QPushButton::clicked, this, &MainWindow::onAdd45);
 
     m_btnAdd50 = new QPushButton("+50%", this);
+    m_btnAdd50->setStyleSheet("QPushButton { padding: 4px 4px 4px 4px; }");
     m_toolbar->addWidget(m_btnAdd50);
     connect(m_btnAdd50, &QPushButton::clicked, this, &MainWindow::onAdd50);
 
     m_toolbar->addSeparator();
 
-    m_btnCancel = new QPushButton("Cancel", this);
+    m_btnCancel = new QPushButton("Cancel All Orders", this);
     m_toolbar->addWidget(m_btnCancel);
     connect(m_btnCancel, &QPushButton::clicked, this, &MainWindow::onCancelOrders);
 
     m_toolbar->addSeparator();
 
-    m_btnClose25 = new QPushButton("Close 25%", this);
+    QLabel* closeLabel = new QLabel(" Close: ", this);
+    m_toolbar->addWidget(closeLabel);
+
+    m_btnClose25 = new QPushButton("25%", this);
     m_toolbar->addWidget(m_btnClose25);
     connect(m_btnClose25, &QPushButton::clicked, this, &MainWindow::onClose25);
 
-    m_btnClose50 = new QPushButton("Close 50%", this);
+    m_btnClose50 = new QPushButton("50%", this);
     m_toolbar->addWidget(m_btnClose50);
     connect(m_btnClose50, &QPushButton::clicked, this, &MainWindow::onClose50);
 
-    m_btnClose75 = new QPushButton("Close 75%", this);
+    m_btnClose75 = new QPushButton("75%", this);
     m_toolbar->addWidget(m_btnClose75);
     connect(m_btnClose75, &QPushButton::clicked, this, &MainWindow::onClose75);
 
-    m_btnClose100 = new QPushButton("Close 100%", this);
-    m_btnClose100->setMinimumWidth(100);
+    m_btnClose100 = new QPushButton("100%", this);
+    m_btnClose100->setMinimumWidth(60);
     m_toolbar->addWidget(m_btnClose100);
     connect(m_btnClose100, &QPushButton::clicked, this, &MainWindow::onClose100);
 
