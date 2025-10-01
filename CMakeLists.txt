@@ -94,6 +94,8 @@ set(SOURCES
     src/widgets/chartwidget.h
     src/widgets/tickerlistwidget.cpp
     src/widgets/tickerlistwidget.h
+    src/widgets/tickeritemdelegate.cpp
+    src/widgets/tickeritemdelegate.h
     src/widgets/orderhistorywidget.cpp
     src/widgets/orderhistorywidget.h
     # Client

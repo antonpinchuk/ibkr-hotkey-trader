@@ -217,16 +217,8 @@ void MainWindow::setupToolbar()
     m_toolbar = new QToolBar(this);
     m_toolbar->setMovable(false);
     m_toolbar->setFloatable(false);
+    m_toolbar->setFixedHeight(45);  // Same height as ticker label
     addToolBar(Qt::TopToolBarArea, m_toolbar);
-
-    // Left: Ticker label (clickable)
-    m_tickerLabel = new QLabel("No Symbol", this);
-    m_tickerLabel->setStyleSheet("QLabel { font-size: 14px; font-weight: bold; padding: 5px 10px; }");
-    m_tickerLabel->setCursor(Qt::PointingHandCursor);
-    m_tickerLabel->installEventFilter(this);
-    m_toolbar->addWidget(m_tickerLabel);
-
-    m_toolbar->addSeparator();
 
     // Center: Trading buttons
     m_btnOpen100 = new QPushButton("Open 100%", this);
@@ -342,6 +334,7 @@ void MainWindow::setupConnections()
 
     // Ticker list
     connect(m_tickerList, &TickerListWidget::symbolSelected, this, &MainWindow::onSymbolSelected);
+    connect(m_tickerList, &TickerListWidget::tickerLabelClicked, this, &MainWindow::onSymbolSearchRequested);
 }
 
 void MainWindow::keyPressEvent(QKeyEvent *event)
@@ -419,10 +412,11 @@ void MainWindow::onSymbolSelected(const QString& symbol)
 {
     // TODO: Check if there are open positions before switching
     m_currentSymbol = symbol;
-    m_tickerLabel->setText(symbol);
+    m_tickerList->setTickerLabel(symbol);
 
-    // Add to ticker list if not already there
+    // Add to ticker list and select it
     m_tickerList->addSymbol(symbol);
+    m_tickerList->setCurrentSymbol(symbol);
 
     // Request market data
     m_chart->setSymbol(symbol);
@@ -445,7 +439,7 @@ void MainWindow::onResetSession()
         m_tradingManager->closeAllPositions();
         m_tradingManager->cancelAllOrders();
         m_currentSymbol.clear();
-        m_tickerLabel->setText("No Symbol");
+        m_tickerList->setTickerLabel("N/A");
         m_tickerList->clear();
         m_orderHistory->clear();
     }
