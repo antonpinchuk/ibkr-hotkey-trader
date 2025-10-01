@@ -1,5 +1,5 @@
-#include "symbolsearchdialog.h"
-#include "ibkrclient.h"
+#include "dialogs/symbolsearchdialog.h"
+#include "client/ibkrclient.h"
 #include <QVBoxLayout>
 #include <QKeyEvent>
 

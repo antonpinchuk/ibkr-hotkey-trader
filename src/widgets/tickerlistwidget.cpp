@@ -1,4 +1,4 @@
-#include "tickerlistwidget.h"
+#include "widgets/tickerlistwidget.h"
 #include <QVBoxLayout>
 
 TickerListWidget::TickerListWidget(QWidget *parent)

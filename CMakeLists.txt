@@ -78,31 +78,39 @@ include_directories(
 # Source files
 set(SOURCES
     src/main.cpp
-    src/mainwindow.cpp
-    src/mainwindow.h
-    src/settingsdialog.cpp
-    src/settingsdialog.h
-    src/symbolsearchdialog.cpp
-    src/symbolsearchdialog.h
-    src/chartwidget.cpp
-    src/chartwidget.h
-    src/tickerlistwidget.cpp
-    src/tickerlistwidget.h
-    src/orderhistorywidget.cpp
-    src/orderhistorywidget.h
-    src/toastnotification.cpp
-    src/toastnotification.h
-    src/ibkrclient.cpp
-    src/ibkrclient.h
-    src/ibkrwrapper.cpp
-    src/ibkrwrapper.h
-    src/tradingmanager.cpp
-    src/tradingmanager.h
-    src/settings.cpp
-    src/settings.h
-    src/order.cpp
-    src/order.h
-    src/bid_stub.cpp  # BID library stub for ARM64 macOS
+    src/bid_stub.cpp
+    # UI
+    src/ui/mainwindow.cpp
+    src/ui/mainwindow.h
+    src/ui/toastnotification.cpp
+    src/ui/toastnotification.h
+    # Dialogs
+    src/dialogs/settingsdialog.cpp
+    src/dialogs/settingsdialog.h
+    src/dialogs/symbolsearchdialog.cpp
+    src/dialogs/symbolsearchdialog.h
+    # Widgets
+    src/widgets/chartwidget.cpp
+    src/widgets/chartwidget.h
+    src/widgets/tickerlistwidget.cpp
+    src/widgets/tickerlistwidget.h
+    src/widgets/orderhistorywidget.cpp
+    src/widgets/orderhistorywidget.h
+    # Client
+    src/client/ibkrclient.cpp
+    src/client/ibkrclient.h
+    src/client/ibkrwrapper.cpp
+    src/client/ibkrwrapper.h
+    # Trading
+    src/trading/tradingmanager.cpp
+    src/trading/tradingmanager.h
+    # Models
+    src/models/settings.cpp
+    src/models/settings.h
+    src/models/uistate.cpp
+    src/models/uistate.h
+    src/models/order.cpp
+    src/models/order.h
 )
 
 # TWS API source files

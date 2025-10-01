@@ -8,7 +8,7 @@
 #include "EClientSocket.h"
 #include "EReader.h"
 #include "EReaderOSSignal.h"
-#include "ibkrwrapper.h"
+#include "client/ibkrwrapper.h"
 
 class IBKRClient : public QObject
 {

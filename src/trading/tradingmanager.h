@@ -4,7 +4,7 @@
 #include <QObject>
 #include <QMap>
 #include <QTimer>
-#include "order.h"
+#include "models/order.h"
 
 class IBKRClient;
 

@@ -1,5 +1,5 @@
-#include "ibkrwrapper.h"
-#include "ibkrclient.h"
+#include "client/ibkrwrapper.h"
+#include "client/ibkrclient.h"
 #include "Execution.h"
 #include "Decimal.h"
 #include <QDebug>

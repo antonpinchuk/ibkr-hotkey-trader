@@ -1,6 +1,6 @@
-#include "tradingmanager.h"
-#include "ibkrclient.h"
-#include "settings.h"
+#include "trading/tradingmanager.h"
+#include "client/ibkrclient.h"
+#include "models/settings.h"
 #include <QDebug>
 
 TradingManager::TradingManager(IBKRClient *client, QObject *parent)

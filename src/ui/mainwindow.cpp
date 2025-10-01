@@ -1,13 +1,14 @@
-#include "mainwindow.h"
-#include "ibkrclient.h"
-#include "tradingmanager.h"
-#include "tickerlistwidget.h"
-#include "chartwidget.h"
-#include "orderhistorywidget.h"
-#include "settingsdialog.h"
-#include "symbolsearchdialog.h"
-#include "toastnotification.h"
-#include "settings.h"
+#include "ui/mainwindow.h"
+#include "client/ibkrclient.h"
+#include "trading/tradingmanager.h"
+#include "widgets/tickerlistwidget.h"
+#include "widgets/chartwidget.h"
+#include "widgets/orderhistorywidget.h"
+#include "dialogs/settingsdialog.h"
+#include "dialogs/symbolsearchdialog.h"
+#include "ui/toastnotification.h"
+#include "models/settings.h"
+#include "models/uistate.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QMenuBar>
@@ -17,6 +18,8 @@
 #include <QMessageBox>
 #include <QFrame>
 #include <QApplication>
+#include <QScreen>
+#include <QCloseEvent>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -43,6 +46,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     setupUI();
     setupConnections();
+    restoreUIState();
 
     // Try to connect to TWS on startup
     Settings& settings = Settings::instance();
@@ -526,4 +530,72 @@ void MainWindow::enableTrading(bool enabled)
     m_btnClose50->setEnabled(enabled);
     m_btnClose75->setEnabled(enabled);
     m_btnClose100->setEnabled(enabled);
+}
+
+void MainWindow::restoreUIState()
+{
+    UIState& uiState = UIState::instance();
+
+    // Restore window geometry
+    bool isMaximized;
+    QString screenName;
+    QRect savedGeometry = uiState.restoreWindowGeometry(isMaximized, screenName);
+
+    // Check if saved screen is still available
+    QScreen *targetScreen = nullptr;
+    for (QScreen *screen : QApplication::screens()) {
+        if (screen->name() == screenName) {
+            targetScreen = screen;
+            break;
+        }
+    }
+
+    // If screen not found, use primary screen
+    if (!targetScreen) {
+        targetScreen = QApplication::primaryScreen();
+    }
+
+    // Ensure window is visible on target screen
+    QRect screenGeometry = targetScreen->availableGeometry();
+    if (!screenGeometry.intersects(savedGeometry)) {
+        // Window is not visible on any screen, center it on primary screen
+        savedGeometry.moveCenter(screenGeometry.center());
+    }
+
+    setGeometry(savedGeometry);
+
+    if (isMaximized) {
+        showMaximized();
+    }
+
+    // Restore splitter state
+    QList<int> sizes = uiState.restoreSplitterSizes();
+    m_mainSplitter->setSizes(sizes);
+}
+
+void MainWindow::saveUIState()
+{
+    UIState& uiState = UIState::instance();
+
+    // Save window geometry
+    QRect geometry = this->geometry();
+    bool isMaximized = this->isMaximized();
+    QString screenName = "";
+
+    QScreen *screen = this->screen();
+    if (screen) {
+        screenName = screen->name();
+    }
+
+    uiState.saveWindowGeometry(geometry, isMaximized, screenName);
+
+    // Save splitter state
+    QList<int> sizes = m_mainSplitter->sizes();
+    uiState.saveSplitterSizes(sizes);
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    saveUIState();
+    QMainWindow::closeEvent(event);
 }

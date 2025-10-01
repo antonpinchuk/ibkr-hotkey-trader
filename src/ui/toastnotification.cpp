@@ -1,4 +1,4 @@
-#include "toastnotification.h"
+#include "ui/toastnotification.h"
 #include <QVBoxLayout>
 #include <QGraphicsOpacityEffect>
 #include <QPropertyAnimation>

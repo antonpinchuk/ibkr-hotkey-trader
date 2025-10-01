@@ -1,4 +1,4 @@
-#include "chartwidget.h"
+#include "widgets/chartwidget.h"
 #include <QVBoxLayout>
 
 ChartWidget::ChartWidget(QWidget *parent)

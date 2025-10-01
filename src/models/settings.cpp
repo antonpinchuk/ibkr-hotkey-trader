@@ -1,4 +1,4 @@
-#include "settings.h"
+#include "models/settings.h"
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QStandardPaths>

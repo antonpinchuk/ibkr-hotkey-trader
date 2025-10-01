@@ -26,6 +26,7 @@ public:
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;
+    void closeEvent(QCloseEvent *event) override;
 
 private slots:
     void onSymbolSearchRequested();
@@ -63,6 +64,9 @@ private:
     void setupToolbar();
     void setupPanels();
     void setupConnections();
+
+    void restoreUIState();
+    void saveUIState();
 
     void showToast(const QString& message, const QString& type = "warning");
     void enableTrading(bool enabled);

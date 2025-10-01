@@ -1,4 +1,4 @@
-#include "orderhistorywidget.h"
+#include "widgets/orderhistorywidget.h"
 #include <QVBoxLayout>
 #include <QHeaderView>
 

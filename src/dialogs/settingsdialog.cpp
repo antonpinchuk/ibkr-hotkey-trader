@@ -1,5 +1,5 @@
-#include "settingsdialog.h"
-#include "settings.h"
+#include "dialogs/settingsdialog.h"
+#include "models/settings.h"
 #include <QVBoxLayout>
 #include <QFormLayout>
 #include <QDialogButtonBox>
