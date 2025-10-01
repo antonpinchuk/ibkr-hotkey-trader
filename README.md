@@ -212,7 +212,114 @@ ibkr-hotkey-trader/
 └── README.md
 ```
 
-### Building for Development
+### IDE Setup
+
+#### CLion (Recommended)
+
+**CLion** is the recommended IDE from JetBrains with full CMake and Qt support.
+
+**Setup Steps:**
+1. **Open Project**:
+   - Open CLion
+   - Select **Open** and choose the project root directory
+   - CLion will automatically detect the CMake project
+
+2. **Configure CMake** (usually automatic):
+   - Go to **Settings → Build, Execution, Deployment → CMake**
+   - Verify the build directory is set (default: `cmake-build-debug`)
+   - Set **Build type** to `Debug` for development
+   - Click **OK** and wait for CMake to reload
+
+3. **Run Configuration**:
+   - Select **IBKRHotkeyTrader** from the run configurations dropdown (top-right toolbar)
+   - Click the **Run** (▶) or **Debug** (🐞) button
+
+#### Qt Creator (Alternative)
+
+1. Open Qt Creator
+2. **File → Open File or Project** → select `CMakeLists.txt`
+3. Configure the build directory and kit
+4. Press **Build** (Ctrl+B) and **Run** (Ctrl+R)
+
+#### IntelliJ IDEA (Using as Editor + External Tools)
+
+IntelliJ IDEA doesn't have built-in CMake/C++ support, but you can configure External Tools for building and running.
+
+**Setup:**
+1. Open project in IntelliJ IDEA
+2. Configure External Tools:
+   - **Settings → Tools → External Tools → Add (+)**
+
+   **Build Tool:**
+   - Name: `CMake Build`
+   - Program: `/bin/bash`
+   - Arguments: `-c "cd $ProjectFileDir$ && mkdir -p build && cd build && cmake .. && make"`
+   - Working directory: `$ProjectFileDir$`
+
+   **Run Tool (macOS):**
+   - Name: `Run IBKRHotkeyTrader`
+   - Program: `/usr/bin/open`
+   - Arguments: `$ProjectFileDir$/build/IBKRHotkeyTrader.app`
+   - Working directory: `$ProjectFileDir$/build`
+
+   **Run Tool (Linux):**
+   - Name: `Run IBKRHotkeyTrader`
+   - Program: `$ProjectFileDir$/build/IBKRHotkeyTrader`
+   - Working directory: `$ProjectFileDir$/build`
+
+3. Usage:
+   - **Tools → External Tools → CMake Build** to build
+   - **Tools → External Tools → Run IBKRHotkeyTrader** to run
+   - Or add to toolbar/menu for quick access
+
+**Debugging:**
+- GUI debugger is not available in IntelliJ IDEA for C++
+- Use `lldb` in terminal: `lldb ./build/IBKRHotkeyTrader`
+- Or use CLion trial (30 days free) for full debugging support
+
+**Alternative (simpler):**
+Just use the built-in terminal in IntelliJ IDEA:
+```bash
+# Build
+mkdir -p build && cd build && cmake .. && make
+
+# Run (macOS) - using 'open' to avoid security warnings
+cd build && open IBKRHotkeyTrader.app
+
+# Run (Linux)
+cd build && ./IBKRHotkeyTrader
+```
+
+**macOS Security Warning Fix:**
+If you get "cannot be opened because the developer cannot be verified":
+
+**Option 1 (Recommended):** Use `open` command instead of direct execution:
+```bash
+open IBKRHotkeyTrader.app
+```
+This is already configured in the External Tool above.
+
+**Option 2:** Remove quarantine attribute (one-time, after each build):
+```bash
+xattr -cr build/IBKRHotkeyTrader.app
+```
+
+**Option 3:** Allow in System Settings:
+- System Settings → Privacy & Security → Click "Open Anyway"
+
+#### Visual Studio Code (Alternative)
+
+**Prerequisites:**
+1. Install **C/C++ Extension** (ms-vscode.cpptools)
+2. Install **CMake Tools Extension** (ms-vscode.cmake-tools)
+
+**Setup:**
+1. Open the project folder in VS Code
+2. Press `Ctrl+Shift+P` → **CMake: Configure**
+3. Select your compiler kit
+4. Press `F5` to build and run
+
+### Building for Development (Command Line)
 ```bash
 # After downloading TWS API (see installation steps above)
 mkdir build && cd build
