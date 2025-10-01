@@ -3,6 +3,7 @@
 
 #include "DefaultEWrapper.h"
 #include <QObject>
+#include <QMap>
 #include <memory>
 
 class IBKRClient;
@@ -25,9 +26,6 @@ public:
     void tickSize(TickerId tickerId, TickType field, Decimal size) override;
     void tickGeneric(TickerId tickerId, TickType tickType, double value) override;
     void tickString(TickerId tickerId, TickType tickType, const std::string& value) override;
-    void tickByTickAllLast(int reqId, int tickType, time_t time, double price, Decimal size, const TickAttribLast& tickAttribLast, const std::string& exchange, const std::string& specialConditions) override;
-    void tickByTickBidAsk(int reqId, time_t time, double bidPrice, double askPrice, Decimal bidSize, Decimal askSize, const TickAttribBidAsk& tickAttribBidAsk) override;
-    void tickByTickMidPoint(int reqId, time_t time, double midPoint) override;
 
     // Historical Data
     void historicalData(TickerId reqId, const Bar& bar) override;
@@ -188,7 +186,7 @@ signals:
     void errorOccurred(int id, int code, const QString& message);
 
     void tickPriceReceived(int tickerId, int field, double price);
-    void tickByTickReceived(int reqId, double price, double bidPrice, double askPrice);
+    void marketDataReceived(int tickerId, double lastPrice, double bidPrice, double askPrice);
 
     void historicalDataReceived(int reqId, long time, double open, double high, double low, double close, long volume);
     void historicalDataComplete(int reqId);
@@ -206,6 +204,17 @@ signals:
 
 private:
     IBKRClient *m_client;
+
+    // Cache for market data aggregation
+    struct MarketDataCache {
+        double lastPrice = 0.0;
+        double bidPrice = 0.0;
+        double askPrice = 0.0;
+        bool hasLast = false;
+        bool hasBid = false;
+        bool hasAsk = false;
+    };
+    QMap<int, MarketDataCache> m_marketDataCache;
 };
 
 #endif // IBKRWRAPPER_H

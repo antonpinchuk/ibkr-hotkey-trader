@@ -37,7 +37,7 @@ signals:
     void error(const QString& message);
 
 private slots:
-    void onTickByTickUpdated(int reqId, double price, double bidPrice, double askPrice);
+    void onMarketDataUpdated(int reqId, double lastPrice, double bidPrice, double askPrice);
     void onOrderStatusUpdated(int orderId, const QString& status, double filled, double remaining, double avgFillPrice);
     void checkAndUpdateSellOrders();
 

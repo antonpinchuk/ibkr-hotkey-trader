@@ -26,8 +26,6 @@ public:
     // Market Data
     void requestMarketData(int tickerId, const QString& symbol);
     void cancelMarketData(int tickerId);
-    void requestTickByTick(int tickerId, const QString& symbol);
-    void cancelTickByTick(int tickerId);
 
     // Historical Data
     void requestHistoricalData(int reqId, const QString& symbol, const QString& endDateTime, const QString& duration, const QString& barSize);
@@ -53,7 +51,7 @@ signals:
     void error(int id, int code, const QString& message);
 
     void tickPriceUpdated(int tickerId, int field, double price);
-    void tickByTickUpdated(int reqId, double price, double bidPrice, double askPrice);
+    void marketDataUpdated(int tickerId, double lastPrice, double bidPrice, double askPrice);
 
     void historicalBarReceived(int reqId, long time, double open, double high, double low, double close, long volume);
     void historicalDataFinished(int reqId);

@@ -18,7 +18,7 @@ TradingManager::TradingManager(IBKRClient *client, QObject *parent)
     connect(m_sellOrderMonitor, &QTimer::timeout, this, &TradingManager::checkAndUpdateSellOrders);
 
     // Connect to IBKR client signals
-    connect(m_client, &IBKRClient::tickByTickUpdated, this, &TradingManager::onTickByTickUpdated);
+    connect(m_client, &IBKRClient::marketDataUpdated, this, &TradingManager::onMarketDataUpdated);
     connect(m_client, &IBKRClient::orderStatusUpdated, this, &TradingManager::onOrderStatusUpdated);
     connect(m_client, &IBKRClient::positionUpdated, [this](const QString& account, const QString& symbol, double position, double avgCost) {
         m_positions[symbol] = position;
@@ -43,7 +43,7 @@ void TradingManager::setSymbol(const QString& symbol)
 
     // Cancel previous symbol's data stream and orders
     if (!symbol.isEmpty()) {
-        m_client->requestTickByTick(1, symbol);
+        m_client->requestMarketData(1, symbol);
         m_sellOrderMonitor->start();
     }
 }
@@ -207,9 +207,9 @@ double TradingManager::getPendingSellQuantity() const
     return 0.0;
 }
 
-void TradingManager::onTickByTickUpdated(int reqId, double price, double bidPrice, double askPrice)
+void TradingManager::onMarketDataUpdated(int reqId, double lastPrice, double bidPrice, double askPrice)
 {
-    m_currentPrice = price;
+    m_currentPrice = lastPrice;
     m_bidPrice = bidPrice;
     m_askPrice = askPrice;
 
