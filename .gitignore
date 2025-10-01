@@ -1,3 +1,13 @@
+.idea
+.vscode
+
+# Build directories
+build/
+cmake-build-*/
+
+# TWS API (download separately)
+external/
+
 # C++ objects and libs
 *.slo
 *.lo
