@@ -106,7 +106,84 @@ void MainWindow::setupMenuBar()
     connect(resetAction, &QAction::triggered, this, &MainWindow::onResetSession);
 
     QMenu *ordersMenu = menuBar()->addMenu("Orders");
-    ordersMenu->addAction("See hotkeys in Help documentation");
+
+    // Opening positions
+    QAction *open100Action = ordersMenu->addAction("Open 100%");
+    open100Action->setShortcut(QKeySequence("Ctrl+O"));
+    connect(open100Action, &QAction::triggered, this, &MainWindow::onOpen100);
+
+    QAction *open50Action = ordersMenu->addAction("Open 50%");
+    open50Action->setShortcut(QKeySequence("Ctrl+P"));
+    connect(open50Action, &QAction::triggered, this, &MainWindow::onOpen50);
+
+    ordersMenu->addSeparator();
+
+    // Adding to position
+    QAction *add5Action = ordersMenu->addAction("Add 5%");
+    add5Action->setShortcut(QKeySequence("Ctrl+1"));
+    connect(add5Action, &QAction::triggered, this, &MainWindow::onAdd5);
+
+    QAction *add10Action = ordersMenu->addAction("Add 10%");
+    add10Action->setShortcut(QKeySequence("Ctrl+2"));
+    connect(add10Action, &QAction::triggered, this, &MainWindow::onAdd10);
+
+    QAction *add15Action = ordersMenu->addAction("Add 15%");
+    add15Action->setShortcut(QKeySequence("Ctrl+3"));
+    connect(add15Action, &QAction::triggered, this, &MainWindow::onAdd15);
+
+    QAction *add20Action = ordersMenu->addAction("Add 20%");
+    add20Action->setShortcut(QKeySequence("Ctrl+4"));
+    connect(add20Action, &QAction::triggered, this, &MainWindow::onAdd20);
+
+    QAction *add25Action = ordersMenu->addAction("Add 25%");
+    add25Action->setShortcut(QKeySequence("Ctrl+5"));
+    connect(add25Action, &QAction::triggered, this, &MainWindow::onAdd25);
+
+    QAction *add30Action = ordersMenu->addAction("Add 30%");
+    add30Action->setShortcut(QKeySequence("Ctrl+6"));
+    connect(add30Action, &QAction::triggered, this, &MainWindow::onAdd30);
+
+    QAction *add35Action = ordersMenu->addAction("Add 35%");
+    add35Action->setShortcut(QKeySequence("Ctrl+7"));
+    connect(add35Action, &QAction::triggered, this, &MainWindow::onAdd35);
+
+    QAction *add40Action = ordersMenu->addAction("Add 40%");
+    add40Action->setShortcut(QKeySequence("Ctrl+8"));
+    connect(add40Action, &QAction::triggered, this, &MainWindow::onAdd40);
+
+    QAction *add45Action = ordersMenu->addAction("Add 45%");
+    add45Action->setShortcut(QKeySequence("Ctrl+9"));
+    connect(add45Action, &QAction::triggered, this, &MainWindow::onAdd45);
+
+    QAction *add50Action = ordersMenu->addAction("Add 50%");
+    add50Action->setShortcut(QKeySequence("Ctrl+0"));
+    connect(add50Action, &QAction::triggered, this, &MainWindow::onAdd50);
+
+    ordersMenu->addSeparator();
+
+    // Cancel orders
+    QAction *cancelAction = ordersMenu->addAction("Cancel All Orders");
+    cancelAction->setShortcut(QKeySequence("Esc"));
+    connect(cancelAction, &QAction::triggered, this, &MainWindow::onCancelOrders);
+
+    ordersMenu->addSeparator();
+
+    // Closing positions
+    QAction *close25Action = ordersMenu->addAction("Close 25%");
+    close25Action->setShortcut(QKeySequence("Ctrl+V"));
+    connect(close25Action, &QAction::triggered, this, &MainWindow::onClose25);
+
+    QAction *close50Action = ordersMenu->addAction("Close 50%");
+    close50Action->setShortcut(QKeySequence("Ctrl+C"));
+    connect(close50Action, &QAction::triggered, this, &MainWindow::onClose50);
+
+    QAction *close75Action = ordersMenu->addAction("Close 75%");
+    close75Action->setShortcut(QKeySequence("Ctrl+X"));
+    connect(close75Action, &QAction::triggered, this, &MainWindow::onClose75);
+
+    QAction *close100Action = ordersMenu->addAction("Close 100%");
+    close100Action->setShortcut(QKeySequence("Ctrl+Z"));
+    connect(close100Action, &QAction::triggered, this, &MainWindow::onClose100);
 
     QMenu *helpMenu = menuBar()->addMenu("Help");
     QAction *helpAction = helpMenu->addAction("Help documentation");
