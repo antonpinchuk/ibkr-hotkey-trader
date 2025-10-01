@@ -15,14 +15,14 @@ ToastNotification::ToastNotification(QWidget *parent)
 {
     setAttribute(Qt::WA_ShowWithoutActivating);
     setAttribute(Qt::WA_DeleteOnClose);
-    setFixedWidth(400);
+    setFixedWidth(500);
 
     m_label = new QLabel(this);
     m_label->setWordWrap(true);
     m_label->setAlignment(Qt::AlignLeft | Qt::AlignTop);
     m_label->setTextFormat(Qt::PlainText);
     m_label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Minimum);
-    m_label->setFixedWidth(370);
+    m_label->setFixedWidth(470);
 
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->addWidget(m_label);

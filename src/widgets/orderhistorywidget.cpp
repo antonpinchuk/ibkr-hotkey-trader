@@ -1,6 +1,9 @@
 #include "widgets/orderhistorywidget.h"
 #include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QGridLayout>
 #include <QHeaderView>
+#include <QFrame>
 
 OrderHistoryWidget::OrderHistoryWidget(QWidget *parent)
     : QWidget(parent)
@@ -22,24 +25,35 @@ OrderHistoryWidget::OrderHistoryWidget(QWidget *parent)
 
     mainLayout->addWidget(m_tabWidget);
 
-    QWidget *statsWidget = new QWidget(this);
-    QVBoxLayout *statsLayout = new QVBoxLayout(statsWidget);
+    // Statistics panel with separator
+    QFrame *separator = new QFrame(this);
+    separator->setFrameShape(QFrame::HLine);
+    separator->setFrameShadow(QFrame::Sunken);
+    mainLayout->addWidget(separator);
 
-    m_totalBalance = new QLabel("Total Balance: $0.00", this);
-    m_totalPnL = new QLabel("Total PnL: $0.00", this);
-    m_totalPnLPercent = new QLabel("Total PnL: 0.00%", this);
+    QWidget *statsWidget = new QWidget(this);
+    QGridLayout *statsLayout = new QGridLayout(statsWidget);
+    statsLayout->setContentsMargins(10, 5, 10, 20);
+    statsLayout->setSpacing(5);
+
+    m_totalBalance = new QLabel("Balance: $0.00", this);
+    m_totalPnL = new QLabel("PnL: $0.00", this);
+    m_totalPnLPercent = new QLabel("PnL: 0.00%", this);
     m_winRate = new QLabel("Win Rate: 0.00%", this);
     m_numTrades = new QLabel("Trades: 0", this);
     m_largestWin = new QLabel("Largest Win: $0.00", this);
     m_largestLoss = new QLabel("Largest Loss: $0.00", this);
 
-    statsLayout->addWidget(m_totalBalance);
-    statsLayout->addWidget(m_totalPnL);
-    statsLayout->addWidget(m_totalPnLPercent);
-    statsLayout->addWidget(m_winRate);
-    statsLayout->addWidget(m_numTrades);
-    statsLayout->addWidget(m_largestWin);
-    statsLayout->addWidget(m_largestLoss);
+    // Left column
+    statsLayout->addWidget(m_totalBalance, 0, 0);
+    statsLayout->addWidget(m_totalPnL, 1, 0);
+    statsLayout->addWidget(m_totalPnLPercent, 2, 0);
+    statsLayout->addWidget(m_numTrades, 3, 0);
+
+    // Right column
+    statsLayout->addWidget(m_winRate, 0, 1);
+    statsLayout->addWidget(m_largestWin, 1, 1);
+    statsLayout->addWidget(m_largestLoss, 2, 1);
 
     mainLayout->addWidget(statsWidget);
 }
