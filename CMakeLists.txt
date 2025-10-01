@@ -10,6 +10,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Charts Network Sql)
+find_package(Protobuf REQUIRED)
 
 # IBKR TWS API
 # The TWS API C++ client files should be in external/twsapi
@@ -36,9 +37,30 @@ endif()
 
 message(STATUS "Using TWS API from: ${TWS_API_DIR}")
 
+# Generate protobuf files from TWS API proto definitions
+file(GLOB TWS_PROTO_FILES "${TWS_API_DIR}/source/proto/*.proto")
+set(PROTO_OUTPUT_DIR "${CMAKE_BINARY_DIR}/generated")
+file(MAKE_DIRECTORY ${PROTO_OUTPUT_DIR})
+
+foreach(PROTO_FILE ${TWS_PROTO_FILES})
+    get_filename_component(PROTO_NAME ${PROTO_FILE} NAME_WE)
+    list(APPEND PROTO_SRCS "${PROTO_OUTPUT_DIR}/${PROTO_NAME}.pb.cc")
+    list(APPEND PROTO_HDRS "${PROTO_OUTPUT_DIR}/${PROTO_NAME}.pb.h")
+
+    add_custom_command(
+        OUTPUT "${PROTO_OUTPUT_DIR}/${PROTO_NAME}.pb.cc" "${PROTO_OUTPUT_DIR}/${PROTO_NAME}.pb.h"
+        COMMAND ${Protobuf_PROTOC_EXECUTABLE}
+        ARGS --cpp_out=${PROTO_OUTPUT_DIR} -I${TWS_API_DIR}/source/proto ${PROTO_FILE}
+        DEPENDS ${PROTO_FILE}
+        COMMENT "Generating C++ code from ${PROTO_NAME}.proto"
+    )
+endforeach()
+
 include_directories(
     ${CMAKE_SOURCE_DIR}/src
     ${TWS_API_DIR}/source/cppclient/client
+    ${PROTO_OUTPUT_DIR}
+    ${Protobuf_INCLUDE_DIRS}
 )
 
 # Source files
@@ -81,6 +103,8 @@ list(FILTER TWS_API_SOURCES EXCLUDE REGEX ".*main\\.cpp$")
 add_executable(${PROJECT_NAME}
     ${SOURCES}
     ${TWS_API_SOURCES}
+    ${PROTO_SRCS}
+    ${PROTO_HDRS}
 )
 
 target_link_libraries(${PROJECT_NAME}
@@ -90,6 +114,7 @@ target_link_libraries(${PROJECT_NAME}
     Qt6::Charts
     Qt6::Network
     Qt6::Sql
+    ${Protobuf_LIBRARIES}
 )
 
 # Platform-specific settings
