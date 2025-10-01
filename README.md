@@ -17,22 +17,23 @@ A fast trading application for Interactive Brokers using keyboard hotkeys for ra
 - Qt 6.2 or later
 - CMake 3.16 or later
 - Protocol Buffers (protobuf) compiler
+- Abseil C++ library
 - C++17 compatible compiler
 
 **Install dependencies (macOS):**
 ```bash
-brew install cmake qt@6 protobuf
+brew install cmake qt@6 protobuf abseil
 ```
 
 **Install dependencies (Ubuntu/Debian):**
 ```bash
-sudo apt install cmake qt6-base-dev protobuf-compiler libprotobuf-dev
+sudo apt install cmake qt6-base-dev protobuf-compiler libprotobuf-dev libabsl-dev
 ```
 
 **Install dependencies (Windows):**
 - Install CMake from https://cmake.org/download/
 - Install Qt6 from https://www.qt.io/download
-- Install vcpkg and run: `vcpkg install protobuf`
+- Install vcpkg and run: `vcpkg install protobuf abseil`
 
 ### Interactive Brokers Setup
 1. **TWS (Trader Workstation)** or **IB Gateway** installed and running

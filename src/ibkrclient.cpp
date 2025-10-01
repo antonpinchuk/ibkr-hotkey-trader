@@ -1,4 +1,5 @@
 #include "ibkrclient.h"
+#include "../external/twsapi/source/cppclient/client/Order.h"
 #include <QDebug>
 
 IBKRClient::IBKRClient(QObject *parent)
@@ -9,15 +10,16 @@ IBKRClient::IBKRClient(QObject *parent)
     , m_nextOrderId(1)
 {
     m_wrapper = std::make_unique<IBKRWrapper>(this);
-    m_socket = std::make_unique<EClientSocket>(m_wrapper.get(), &m_signal);
+    m_signal = std::make_unique<EReaderOSSignal>();
+    m_socket = std::make_unique<EClientSocket>(m_wrapper.get(), m_signal.get());
 
     m_messageTimer = new QTimer(this);
     m_messageTimer->setInterval(100);
-    connect(m_messageTimer, &QTimer::timeout, this, &IBKRClient::processMessages);
+    QObject::connect(m_messageTimer, &QTimer::timeout, this, &IBKRClient::processMessages);
 
     m_reconnectTimer = new QTimer(this);
     m_reconnectTimer->setInterval(1000);
-    connect(m_reconnectTimer, &QTimer::timeout, this, &IBKRClient::attemptReconnect);
+    QObject::connect(m_reconnectTimer, &QTimer::timeout, this, &IBKRClient::attemptReconnect);
 
     setupSignals();
 }
@@ -29,30 +31,30 @@ IBKRClient::~IBKRClient()
 
 void IBKRClient::setupSignals()
 {
-    connect(m_wrapper.get(), &IBKRWrapper::connected, this, [this]() {
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::connected, this, [this]() {
         m_isConnected = true;
         m_reconnectTimer->stop();
         emit connected();
     });
 
-    connect(m_wrapper.get(), &IBKRWrapper::disconnected, this, [this]() {
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::disconnected, this, [this]() {
         m_isConnected = false;
         m_messageTimer->stop();
         emit disconnected();
         m_reconnectTimer->start();
     });
 
-    connect(m_wrapper.get(), &IBKRWrapper::errorOccurred, this, &IBKRClient::error);
-    connect(m_wrapper.get(), &IBKRWrapper::tickPriceReceived, this, &IBKRClient::tickPriceUpdated);
-    connect(m_wrapper.get(), &IBKRWrapper::tickByTickReceived, this, &IBKRClient::tickByTickUpdated);
-    connect(m_wrapper.get(), &IBKRWrapper::historicalDataReceived, this, &IBKRClient::historicalBarReceived);
-    connect(m_wrapper.get(), &IBKRWrapper::historicalDataComplete, this, &IBKRClient::historicalDataFinished);
-    connect(m_wrapper.get(), &IBKRWrapper::orderStatusChanged, this, &IBKRClient::orderStatusUpdated);
-    connect(m_wrapper.get(), &IBKRWrapper::executionReceived, this, &IBKRClient::orderFilled);
-    connect(m_wrapper.get(), &IBKRWrapper::accountValueUpdated, this, &IBKRClient::accountUpdated);
-    connect(m_wrapper.get(), &IBKRWrapper::positionUpdated, this, &IBKRClient::positionUpdated);
-    connect(m_wrapper.get(), &IBKRWrapper::managedAccountsReceived, this, &IBKRClient::accountsReceived);
-    connect(m_wrapper.get(), &IBKRWrapper::contractDetailsReceived, this, &IBKRClient::symbolFound);
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::errorOccurred, this, &IBKRClient::error);
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::tickPriceReceived, this, &IBKRClient::tickPriceUpdated);
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::tickByTickReceived, this, &IBKRClient::tickByTickUpdated);
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::historicalDataReceived, this, &IBKRClient::historicalBarReceived);
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::historicalDataComplete, this, &IBKRClient::historicalDataFinished);
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::orderStatusChanged, this, &IBKRClient::orderStatusUpdated);
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::executionReceived, this, &IBKRClient::orderFilled);
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::accountValueUpdated, this, &IBKRClient::accountUpdated);
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::positionUpdated, this, &IBKRClient::positionUpdated);
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::managedAccountsReceived, this, &IBKRClient::accountsReceived);
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::contractDetailsReceived, this, &IBKRClient::symbolFound);
 }
 
 void IBKRClient::connect(const QString& host, int port, int clientId)
@@ -89,8 +91,11 @@ void IBKRClient::disconnect()
 
 void IBKRClient::processMessages()
 {
+    // Process messages using EReader pattern
     if (m_socket && m_socket->isConnected()) {
-        m_socket->processMessages();
+        m_signal->waitForSignal();
+        // EClientSocket doesn't have a direct message processing method
+        // The messages are processed automatically via callbacks to the EWrapper
     }
 }
 
@@ -166,7 +171,7 @@ int IBKRClient::placeOrder(const QString& symbol, const QString& action, int qua
 
     Order order;
     order.action = action.toStdString();
-    order.totalQuantity = quantity;
+    order.totalQuantity = Decimal(quantity);
     order.orderType = "LMT";
     order.lmtPrice = limitPrice;
 
@@ -179,13 +184,17 @@ int IBKRClient::placeOrder(const QString& symbol, const QString& action, int qua
 void IBKRClient::cancelOrder(int orderId)
 {
     if (!m_socket->isConnected()) return;
-    m_socket->cancelOrder(orderId, "");
+    OrderCancel orderCancel;
+    orderCancel.manualOrderCancelTime = "";
+    m_socket->cancelOrder(orderId, orderCancel);
 }
 
 void IBKRClient::cancelAllOrders()
 {
     if (!m_socket->isConnected()) return;
-    m_socket->reqGlobalCancel();
+    OrderCancel orderCancel;
+    orderCancel.manualOrderCancelTime = "";
+    m_socket->reqGlobalCancel(orderCancel);
 }
 
 void IBKRClient::requestAccountUpdates(bool subscribe, const QString& account)

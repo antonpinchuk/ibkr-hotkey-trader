@@ -5,6 +5,7 @@
 #include <QTimer>
 #include <memory>
 #include "EClientSocket.h"
+#include "EReaderOSSignal.h"
 #include "ibkrwrapper.h"
 
 class IBKRClient : public QObject
@@ -73,6 +74,7 @@ private:
 
     std::unique_ptr<IBKRWrapper> m_wrapper;
     std::unique_ptr<EClientSocket> m_socket;
+    std::unique_ptr<EReaderOSSignal> m_signal;
     QTimer *m_messageTimer;
     QTimer *m_reconnectTimer;
 

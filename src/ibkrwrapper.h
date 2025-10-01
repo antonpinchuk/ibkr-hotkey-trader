@@ -1,13 +1,14 @@
 #ifndef IBKRWRAPPER_H
 #define IBKRWRAPPER_H
 
-#include "EWrapper.h"
+#include "DefaultEWrapper.h"
 #include <QObject>
 #include <memory>
 
 class IBKRClient;
+struct CommissionReport;  // Forward declaration
 
-class IBKRWrapper : public QObject, public EWrapper
+class IBKRWrapper : public QObject, public DefaultEWrapper
 {
     Q_OBJECT
 
@@ -95,7 +96,8 @@ public:
     void marketDataType(TickerId reqId, int marketDataType) override {}
 
     // Commission Report - Not used but must be implemented
-    void commissionReport(const CommissionReport& commissionReport) override {}
+    // Note: Using forward declaration, so can't use override keyword
+    void commissionReport(const CommissionReport& commission) {}
 
     // Account Summary - Not used but must be implemented
     void accountSummary(int reqId, const std::string& account, const std::string& tag, const std::string& value, const std::string& currency) override {}

@@ -12,6 +12,18 @@ set(CMAKE_AUTOUIC ON)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Charts Network Sql)
 find_package(Protobuf REQUIRED)
 
+# Try to find abseil-cpp, or use Homebrew path if not found
+find_package(absl CONFIG)
+if(NOT absl_FOUND)
+    message(STATUS "absl not found via find_package, trying Homebrew")
+    set(ABSL_ROOT "/opt/homebrew/opt/abseil")
+    if(EXISTS "${ABSL_ROOT}")
+        include_directories("${ABSL_ROOT}/include")
+        link_directories("${ABSL_ROOT}/lib")
+        message(STATUS "Using abseil from: ${ABSL_ROOT}")
+    endif()
+endif()
+
 # IBKR TWS API
 # The TWS API C++ client files should be in external/twsapi
 # Run ./download_tws_api.sh to download and extract automatically
@@ -90,6 +102,7 @@ set(SOURCES
     src/settings.h
     src/order.cpp
     src/order.h
+    src/bid_stub.cpp  # BID library stub for ARM64 macOS
 )
 
 # TWS API source files
@@ -107,15 +120,37 @@ add_executable(${PROJECT_NAME}
     ${PROTO_HDRS}
 )
 
-target_link_libraries(${PROJECT_NAME}
-    Qt6::Core
-    Qt6::Gui
-    Qt6::Widgets
-    Qt6::Charts
-    Qt6::Network
-    Qt6::Sql
-    ${Protobuf_LIBRARIES}
-)
+if(absl_FOUND)
+    target_link_libraries(${PROJECT_NAME}
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Charts
+        Qt6::Network
+        Qt6::Sql
+        ${Protobuf_LIBRARIES}
+        absl::base
+        absl::hash
+        absl::log_internal_check_op
+        absl::log_internal_message
+        absl::strings
+    )
+else()
+    target_link_libraries(${PROJECT_NAME}
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Charts
+        Qt6::Network
+        Qt6::Sql
+        ${Protobuf_LIBRARIES}
+        absl_base
+        absl_hash
+        absl_log_internal_check_op
+        absl_log_internal_message
+        absl_strings
+    )
+endif()
 
 # Platform-specific settings
 if(APPLE)
