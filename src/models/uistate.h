@@ -21,6 +21,10 @@ public:
     void saveSplitterSizes(const QList<int>& sizes);
     QList<int> restoreSplitterSizes();
 
+    // Table column widths
+    void saveTableColumnWidths(const QString& tableName, const QList<int>& widths);
+    QList<int> restoreTableColumnWidths(const QString& tableName);
+
 private:
     explicit UIState(QObject *parent = nullptr);
     ~UIState();

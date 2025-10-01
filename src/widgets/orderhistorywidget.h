@@ -13,12 +13,18 @@ class OrderHistoryWidget : public QWidget
 public:
     explicit OrderHistoryWidget(QWidget *parent = nullptr);
     void clear();
+    void saveColumnWidths();
 
 private:
+    void setupTableColumns(QTableWidget *table);
+    void restoreColumnWidths(QTableWidget *table, const QString& tableName);
+    void connectColumnResizeSignals();
+
     QTabWidget *m_tabWidget;
     QTableWidget *m_currentTable;
     QTableWidget *m_allTable;
 
+    QLabel *m_account;
     QLabel *m_totalBalance;
     QLabel *m_totalPnL;
     QLabel *m_totalPnLPercent;

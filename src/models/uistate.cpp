@@ -81,6 +81,18 @@ void UIState::createTables()
     if (!query.exec(createSplitterTable)) {
         qWarning() << "Failed to create splitter_state table:" << query.lastError().text();
     }
+
+    // Table column widths table
+    QString createTableWidthsTable = R"(
+        CREATE TABLE IF NOT EXISTS table_column_widths (
+            table_name TEXT PRIMARY KEY,
+            widths TEXT
+        )
+    )";
+
+    if (!query.exec(createTableWidthsTable)) {
+        qWarning() << "Failed to create table_column_widths table:" << query.lastError().text();
+    }
 }
 
 void UIState::saveWindowGeometry(const QRect& geometry, bool isMaximized, const QString& screenName)
@@ -174,4 +186,55 @@ QList<int> UIState::restoreSplitterSizes()
 
     // Default sizes if not found (proportions: 1:4:2)
     return QList<int>() << 200 << 800 << 400;
+}
+
+void UIState::saveTableColumnWidths(const QString& tableName, const QList<int>& widths)
+{
+    QSqlQuery query(m_db);
+
+    // Convert widths to comma-separated string
+    QStringList widthStrings;
+    for (int width : widths) {
+        widthStrings << QString::number(width);
+    }
+    QString widthsStr = widthStrings.join(",");
+
+    // Delete existing record
+    query.prepare("DELETE FROM table_column_widths WHERE table_name = :table_name");
+    query.bindValue(":table_name", tableName);
+    query.exec();
+
+    // Insert new record
+    query.prepare(R"(
+        INSERT INTO table_column_widths (table_name, widths)
+        VALUES (:table_name, :widths)
+    )");
+
+    query.bindValue(":table_name", tableName);
+    query.bindValue(":widths", widthsStr);
+
+    if (!query.exec()) {
+        qWarning() << "Failed to save table column widths:" << query.lastError().text();
+    }
+}
+
+QList<int> UIState::restoreTableColumnWidths(const QString& tableName)
+{
+    QSqlQuery query(m_db);
+    query.prepare("SELECT widths FROM table_column_widths WHERE table_name = :table_name");
+    query.bindValue(":table_name", tableName);
+
+    if (query.exec() && query.next()) {
+        QString widthsStr = query.value(0).toString();
+        QStringList widthStrings = widthsStr.split(",");
+
+        QList<int> widths;
+        for (const QString& widthStr : widthStrings) {
+            widths << widthStr.toInt();
+        }
+        return widths;
+    }
+
+    // Return empty list if not found
+    return QList<int>();
 }
