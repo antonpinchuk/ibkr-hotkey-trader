@@ -1,0 +1,31 @@
+#ifndef ORDERHISTORYWIDGET_H
+#define ORDERHISTORYWIDGET_H
+
+#include <QWidget>
+#include <QTabWidget>
+#include <QTableWidget>
+#include <QLabel>
+
+class OrderHistoryWidget : public QWidget
+{
+    Q_OBJECT
+
+public:
+    explicit OrderHistoryWidget(QWidget *parent = nullptr);
+    void clear();
+
+private:
+    QTabWidget *m_tabWidget;
+    QTableWidget *m_currentTable;
+    QTableWidget *m_allTable;
+
+    QLabel *m_totalBalance;
+    QLabel *m_totalPnL;
+    QLabel *m_totalPnLPercent;
+    QLabel *m_winRate;
+    QLabel *m_numTrades;
+    QLabel *m_largestWin;
+    QLabel *m_largestLoss;
+};
+
+#endif // ORDERHISTORYWIDGET_H

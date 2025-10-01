@@ -3,8 +3,10 @@
 
 #include <QObject>
 #include <QTimer>
+#include <QThread>
 #include <memory>
 #include "EClientSocket.h"
+#include "EReader.h"
 #include "EReaderOSSignal.h"
 #include "ibkrwrapper.h"
 
@@ -74,6 +76,7 @@ private:
 
     std::unique_ptr<IBKRWrapper> m_wrapper;
     std::unique_ptr<EClientSocket> m_socket;
+    std::unique_ptr<EReader> m_reader;
     std::unique_ptr<EReaderOSSignal> m_signal;
     QTimer *m_messageTimer;
     QTimer *m_reconnectTimer;
@@ -83,6 +86,7 @@ private:
     int m_port;
     int m_clientId;
     int m_nextOrderId;
+    int m_reconnectAttempts;
 };
 
 #endif // IBKRCLIENT_H

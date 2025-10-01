@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QLabel>
 #include <QTimer>
+#include <QMap>
 
 class ToastNotification : public QWidget
 {
@@ -25,13 +26,17 @@ protected:
 
 private slots:
     void fadeOut();
+    void onDestroyed();
 
 private:
     void showMessage(const QString &message, Type type);
 
+    static QMap<QString, ToastNotification*> s_activeToasts;
+
     QLabel *m_label;
     QTimer *m_timer;
     Type m_type;
+    QString m_message;
 };
 
 #endif // TOASTNOTIFICATION_H

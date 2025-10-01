@@ -68,6 +68,10 @@ void IBKRClient::connect(const QString& host, int port, int clientId)
     bool connected = m_socket->eConnect(host.toStdString().c_str(), port, clientId, false);
 
     if (connected) {
+        // Create EReader and start it
+        m_reader = std::make_unique<EReader>(m_socket.get(), m_signal.get());
+        m_reader->start();
+
         m_messageTimer->start();
         qDebug() << "Connection initiated";
     } else {
@@ -86,16 +90,15 @@ void IBKRClient::disconnect()
         m_socket->eDisconnect();
     }
 
+    m_reader.reset();
     m_isConnected = false;
 }
 
 void IBKRClient::processMessages()
 {
-    // Process messages using EReader pattern
-    if (m_socket && m_socket->isConnected()) {
-        m_signal->waitForSignal();
-        // EClientSocket doesn't have a direct message processing method
-        // The messages are processed automatically via callbacks to the EWrapper
+    // Process messages using EReader pattern (non-blocking)
+    if (m_reader && m_socket && m_socket->isConnected()) {
+        m_reader->processMsgs();
     }
 }
 

@@ -2,6 +2,19 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QLabel>
+#include <QPushButton>
+#include <QToolBar>
+#include <QSplitter>
+
+class IBKRClient;
+class TradingManager;
+class TickerListWidget;
+class ChartWidget;
+class OrderHistoryWidget;
+class SettingsDialog;
+class SymbolSearchDialog;
+class ToastNotification;
 
 class MainWindow : public QMainWindow
 {
@@ -10,6 +23,90 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+
+protected:
+    void keyPressEvent(QKeyEvent *event) override;
+
+private slots:
+    void onSymbolSearchRequested();
+    void onSymbolSelected(const QString& symbol);
+    void onSettingsClicked();
+    void onResetSession();
+    void onQuit();
+
+    void onConnected();
+    void onDisconnected();
+    void onError(int id, int code, const QString& message);
+
+    // Trading button slots
+    void onOpen100();
+    void onOpen50();
+    void onAdd5();
+    void onAdd10();
+    void onAdd15();
+    void onAdd20();
+    void onAdd25();
+    void onAdd30();
+    void onAdd35();
+    void onAdd40();
+    void onAdd45();
+    void onAdd50();
+    void onClose25();
+    void onClose50();
+    void onClose75();
+    void onClose100();
+    void onCancelOrders();
+
+private:
+    void setupUI();
+    void setupMenuBar();
+    void setupToolbar();
+    void setupPanels();
+    void setupConnections();
+
+    void showToast(const QString& message, const QString& type = "warning");
+    void enableTrading(bool enabled);
+
+    // UI Components
+    QLabel *m_tickerLabel;
+    QPushButton *m_settingsButton;
+
+    // Trading buttons
+    QPushButton *m_btnOpen100;
+    QPushButton *m_btnOpen50;
+    QPushButton *m_btnAdd5;
+    QPushButton *m_btnAdd10;
+    QPushButton *m_btnAdd15;
+    QPushButton *m_btnAdd20;
+    QPushButton *m_btnAdd25;
+    QPushButton *m_btnAdd30;
+    QPushButton *m_btnAdd35;
+    QPushButton *m_btnAdd40;
+    QPushButton *m_btnAdd45;
+    QPushButton *m_btnAdd50;
+    QPushButton *m_btnCancel;
+    QPushButton *m_btnClose25;
+    QPushButton *m_btnClose50;
+    QPushButton *m_btnClose75;
+    QPushButton *m_btnClose100;
+
+    QToolBar *m_toolbar;
+    QSplitter *m_mainSplitter;
+
+    // Widgets
+    TickerListWidget *m_tickerList;
+    ChartWidget *m_chart;
+    OrderHistoryWidget *m_orderHistory;
+
+    // Dialogs
+    SettingsDialog *m_settingsDialog;
+    SymbolSearchDialog *m_symbolSearch;
+
+    // Business logic
+    IBKRClient *m_ibkrClient;
+    TradingManager *m_tradingManager;
+
+    QString m_currentSymbol;
 };
 
 #endif // MAINWINDOW_H
