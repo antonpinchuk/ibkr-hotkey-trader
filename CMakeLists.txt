@@ -170,13 +170,29 @@ if(APPLE)
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.kinect-pro.ibkr-hotkey-trader"
         MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
         MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
+        MACOSX_BUNDLE_ICON_FILE icon.icns
     )
+
+    # Copy icon to bundle resources
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/icon.icns PROPERTIES
+        MACOSX_PACKAGE_LOCATION Resources
+    )
+    target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/resources/icon.icns)
 endif()
 
 if(WIN32)
     set_target_properties(${PROJECT_NAME} PROPERTIES
         WIN32_EXECUTABLE TRUE
     )
+
+    # Windows icon resource
+    if(EXISTS ${CMAKE_SOURCE_DIR}/resources/icon.ico)
+        configure_file(
+            ${CMAKE_SOURCE_DIR}/resources/icon.rc.in
+            ${CMAKE_BINARY_DIR}/icon.rc
+        )
+        target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_BINARY_DIR}/icon.rc)
+    endif()
 endif()
 
 # Install
