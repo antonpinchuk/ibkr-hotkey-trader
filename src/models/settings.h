@@ -11,9 +11,6 @@ public:
     static Settings& instance();
 
     // Trading settings
-    QString account() const { return m_account; }
-    void setAccount(const QString& account);
-
     double budget() const { return m_budget; }
     void setBudget(double budget);
 
@@ -49,7 +46,6 @@ private:
 
     QSqlDatabase m_db;
 
-    QString m_account;
     double m_budget;
     int m_askOffset;
     int m_bidOffset;

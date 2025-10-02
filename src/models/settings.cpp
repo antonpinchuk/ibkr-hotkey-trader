@@ -92,11 +92,6 @@ void Settings::initDefaults()
     m_clientId = 1;
 }
 
-void Settings::setAccount(const QString& account)
-{
-    m_account = account;
-}
-
 void Settings::setBudget(double budget)
 {
     m_budget = budget;
@@ -164,7 +159,6 @@ void Settings::setValue(const QString& key, const QString& value)
 
 void Settings::load()
 {
-    m_account = getValue("account", "");
     m_budget = getValue("budget", "1000.0").toDouble();
     m_askOffset = getValue("ask_offset", "10").toInt();
     m_bidOffset = getValue("bid_offset", "10").toInt();
@@ -182,7 +176,6 @@ void Settings::load()
 
 void Settings::save()
 {
-    setValue("account", m_account);
     setValue("budget", QString::number(m_budget));
     setValue("ask_offset", QString::number(m_askOffset));
     setValue("bid_offset", QString::number(m_bidOffset));

@@ -19,6 +19,7 @@ public:
     // Connection and Server
     void connectAck() override;
     void connectionClosed() override;
+    void nextValidId(OrderId orderId) override;
 
     // Market Data
     void tickPrice(TickerId tickerId, TickType field, double price, const TickAttrib& attrib) override;
@@ -185,6 +186,7 @@ public:
 signals:
     void connected();
     void disconnected();
+    void apiReady(int nextOrderId);
     void errorOccurred(int id, int code, const QString& message);
 
     void tickPriceReceived(int tickerId, int field, double price);

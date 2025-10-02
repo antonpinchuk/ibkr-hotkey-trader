@@ -25,10 +25,6 @@ void SettingsDialog::setupUI()
     QWidget *tradingTab = new QWidget();
     QFormLayout *tradingLayout = new QFormLayout(tradingTab);
 
-    m_accountCombo = new QComboBox();
-    m_accountCombo->addItem("DU1234567"); // TODO: Load from IBKR
-    tradingLayout->addRow("Account:", m_accountCombo);
-
     m_budgetEdit = new QLineEdit();
     tradingLayout->addRow("Budget $:", m_budgetEdit);
 

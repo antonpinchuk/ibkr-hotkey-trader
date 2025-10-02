@@ -359,6 +359,13 @@ void MainWindow::setupConnections()
     connect(m_ibkrClient, &IBKRClient::connected, this, &MainWindow::onConnected);
     connect(m_ibkrClient, &IBKRClient::disconnected, this, &MainWindow::onDisconnected);
     connect(m_ibkrClient, &IBKRClient::error, this, &MainWindow::onError);
+    connect(m_ibkrClient, &IBKRClient::activeAccountChanged, m_orderHistory, &OrderHistoryWidget::setAccount);
+    connect(m_ibkrClient, &IBKRClient::accountUpdated, this, [this](const QString& key, const QString& value, const QString& currency, const QString& account) {
+        // Update balance when NetLiquidation value is received
+        if (key == "NetLiquidation" && account == m_ibkrClient->activeAccount()) {
+            m_orderHistory->setBalance(value.toDouble());
+        }
+    });
 
     // Symbol search
     connect(m_symbolSearch, &SymbolSearchDialog::symbolSelected, this, &MainWindow::onSymbolSelected);
@@ -505,13 +512,19 @@ void MainWindow::onDisconnected()
 {
     showToast("Disconnected from TWS. Reconnecting...", "error");
     enableTrading(false);
+    m_orderHistory->setBalance(0.0);
 }
 
 void MainWindow::onError(int id, int code, const QString& message)
 {
     // Filter out informational TWS status messages (not actual errors)
+    // 1100: Connectivity between IB and TWS lost (handled by reconnect)
+    // 1300: TWS socket port reset - relogin (handled by reconnect)
     // 2104-2110: Market data farm connection status
     // 2158: Sec-def data farm connection status
+    if (code == 1100 || code == 1300) {
+        return; // Connection lost - handled by auto-reconnect
+    }
     if (code >= 2104 && code <= 2110) {
         return; // Ignore market data farm status messages
     }

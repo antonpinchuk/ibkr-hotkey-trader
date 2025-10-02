@@ -19,9 +19,11 @@ public:
     ~IBKRClient();
 
     bool isConnected() const { return m_isConnected; }
+    QString activeAccount() const { return m_activeAccount; }
 
     void connect(const QString& host, int port, int clientId);
     void disconnect();
+    void disconnect(bool stopReconnect);
 
     // Market Data
     void requestMarketData(int tickerId, const QString& symbol);
@@ -66,6 +68,7 @@ signals:
 
     void accountsReceived(const QString& accounts);
     void symbolFound(int reqId, const QString& symbol, const QString& exchange, int conId);
+    void activeAccountChanged(const QString& account);
 
 private slots:
     void processMessages();
@@ -87,6 +90,7 @@ private:
     int m_clientId;
     int m_nextOrderId;
     int m_reconnectAttempts;
+    QString m_activeAccount;
 };
 
 #endif // IBKRCLIENT_H

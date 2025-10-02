@@ -3,7 +3,6 @@
 
 #include <QDialog>
 #include <QTabWidget>
-#include <QComboBox>
 #include <QLineEdit>
 #include <QSpinBox>
 
@@ -25,7 +24,6 @@ private:
     QTabWidget *m_tabWidget;
 
     // Trading tab
-    QComboBox *m_accountCombo;
     QLineEdit *m_budgetEdit;
 
     // Limits tab

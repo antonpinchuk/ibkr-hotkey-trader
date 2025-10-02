@@ -126,3 +126,13 @@ void OrderHistoryWidget::saveColumnWidths()
     }
     uiState.saveTableColumnWidths("order_history_all", allWidths);
 }
+
+void OrderHistoryWidget::setAccount(const QString& account)
+{
+    m_account->setText("Account: " + account);
+}
+
+void OrderHistoryWidget::setBalance(double balance)
+{
+    m_totalBalance->setText(QString("Balance: $%1").arg(balance, 0, 'f', 2));
+}

@@ -21,9 +21,12 @@ TradingManager::TradingManager(IBKRClient *client, QObject *parent)
     connect(m_client, &IBKRClient::tickByTickUpdated, this, &TradingManager::onTickByTickUpdated);
     connect(m_client, &IBKRClient::orderStatusUpdated, this, &TradingManager::onOrderStatusUpdated);
     connect(m_client, &IBKRClient::positionUpdated, [this](const QString& account, const QString& symbol, double position, double avgCost) {
-        m_positions[symbol] = position;
-        m_avgCosts[symbol] = avgCost;
-        emit positionUpdated(symbol, position, avgCost);
+        // Only track positions for active account
+        if (account == m_client->activeAccount()) {
+            m_positions[symbol] = position;
+            m_avgCosts[symbol] = avgCost;
+            emit positionUpdated(symbol, position, avgCost);
+        }
     });
 }
 

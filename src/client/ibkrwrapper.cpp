@@ -21,10 +21,27 @@ void IBKRWrapper::connectionClosed()
     emit disconnected();
 }
 
+void IBKRWrapper::nextValidId(OrderId orderId)
+{
+    qDebug() << "API ready, next valid order ID:" << orderId;
+    emit apiReady(orderId);
+}
+
 void IBKRWrapper::error(int id, time_t errorTime, int errorCode, const std::string& errorString, const std::string& advancedOrderRejectJson)
 {
     QString msg = QString::fromStdString(errorString);
     qDebug() << "Error [" << id << "][" << errorCode << "]:" << msg;
+
+    // Detect connection issues that require reconnect
+    // 1100: Connectivity between IB and TWS has been lost
+    // 1300: TWS socket port has been reset (relogin)
+    // 2110: Connectivity between TWS and server is broken
+    if (errorCode == 1100 || errorCode == 1300 || errorCode == 2110) {
+        qDebug() << "Connection lost error detected (code" << errorCode << "), forcing disconnect and reconnect";
+        // Force socket closure and trigger reconnect (don't stop reconnect timer)
+        m_client->disconnect(false);
+    }
+
     emit errorOccurred(id, errorCode, msg);
 }
 

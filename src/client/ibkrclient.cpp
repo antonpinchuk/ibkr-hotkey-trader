@@ -8,6 +8,7 @@ IBKRClient::IBKRClient(QObject *parent)
     , m_port(0)
     , m_clientId(0)
     , m_nextOrderId(1)
+    , m_activeAccount("N/A")
 {
     m_wrapper = std::make_unique<IBKRWrapper>(this);
     m_signal = std::make_unique<EReaderOSSignal>();
@@ -32,16 +33,22 @@ IBKRClient::~IBKRClient()
 void IBKRClient::setupSignals()
 {
     QObject::connect(m_wrapper.get(), &IBKRWrapper::connected, this, [this]() {
+        qDebug() << "Connection acknowledged by TWS";
+    });
+
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::apiReady, this, [this](int nextOrderId) {
         m_isConnected = true;
         m_reconnectTimer->stop();
+        m_nextOrderId = nextOrderId;
+        qDebug() << "API ready, requesting managed accounts";
+        // Request managed accounts to get active account (after API is ready)
+        requestManagedAccounts();
         emit connected();
     });
 
     QObject::connect(m_wrapper.get(), &IBKRWrapper::disconnected, this, [this]() {
-        m_isConnected = false;
-        m_messageTimer->stop();
-        emit disconnected();
-        m_reconnectTimer->start();
+        // TWS initiated disconnect (connectionClosed callback)
+        disconnect(false); // Don't stop reconnect, let it auto-reconnect
     });
 
     QObject::connect(m_wrapper.get(), &IBKRWrapper::errorOccurred, this, &IBKRClient::error);
@@ -53,7 +60,39 @@ void IBKRClient::setupSignals()
     QObject::connect(m_wrapper.get(), &IBKRWrapper::executionReceived, this, &IBKRClient::orderFilled);
     QObject::connect(m_wrapper.get(), &IBKRWrapper::accountValueUpdated, this, &IBKRClient::accountUpdated);
     QObject::connect(m_wrapper.get(), &IBKRWrapper::positionUpdated, this, &IBKRClient::positionUpdated);
-    QObject::connect(m_wrapper.get(), &IBKRWrapper::managedAccountsReceived, this, &IBKRClient::accountsReceived);
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::managedAccountsReceived, this, [this](const QString& accounts) {
+        // Managed accounts callback also indicates successful connection
+        if (!m_isConnected) {
+            m_isConnected = true;
+            m_reconnectTimer->stop();
+            qDebug() << "Connection established (via managedAccounts)";
+            emit connected();
+        }
+
+        // Take first account from comma-separated list (active account in TWS)
+        QStringList accountList = accounts.split(',', Qt::SkipEmptyParts);
+        if (!accountList.isEmpty()) {
+            QString newAccount = accountList.first().trimmed();
+            if (!newAccount.isEmpty()) {
+                m_activeAccount = newAccount;
+                qDebug() << "Active account set to:" << m_activeAccount;
+                emit activeAccountChanged(m_activeAccount);
+                // Request account updates to get balance
+                requestAccountUpdates(true, m_activeAccount);
+            } else {
+                m_activeAccount = "N/A";
+                qDebug() << "No active account available from TWS";
+                emit activeAccountChanged("N/A");
+                emit error(-1, 2104, "No account available. Check TWS login and permissions.");
+            }
+        } else {
+            m_activeAccount = "N/A";
+            qDebug() << "No managed accounts received from TWS";
+            emit activeAccountChanged("N/A");
+            emit error(-1, 2104, "No account available. Check TWS login and permissions.");
+        }
+        emit accountsReceived(accounts);
+    });
     QObject::connect(m_wrapper.get(), &IBKRWrapper::contractDetailsReceived, this, &IBKRClient::symbolFound);
 }
 
@@ -83,15 +122,34 @@ void IBKRClient::connect(const QString& host, int port, int clientId)
 
 void IBKRClient::disconnect()
 {
+    disconnect(true);
+}
+
+void IBKRClient::disconnect(bool stopReconnect)
+{
     m_messageTimer->stop();
-    m_reconnectTimer->stop();
+    if (stopReconnect) {
+        m_reconnectTimer->stop();
+    }
 
     if (m_socket->isConnected()) {
         m_socket->eDisconnect();
     }
 
     m_reader.reset();
+
+    if (!m_isConnected) {
+        return; // Already disconnected
+    }
+
     m_isConnected = false;
+    m_activeAccount = "N/A";
+    emit activeAccountChanged("N/A");
+    emit disconnected();
+
+    if (!stopReconnect) {
+        m_reconnectTimer->start();
+    }
 }
 
 void IBKRClient::processMessages()
@@ -106,6 +164,11 @@ void IBKRClient::attemptReconnect()
 {
     if (!m_isConnected && !m_host.isEmpty()) {
         qDebug() << "Attempting to reconnect...";
+        // Ensure clean disconnect before reconnecting
+        if (m_socket->isConnected()) {
+            m_socket->eDisconnect();
+            m_reader.reset();
+        }
         connect(m_host, m_port, m_clientId);
     }
 }

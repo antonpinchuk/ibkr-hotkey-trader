@@ -14,6 +14,8 @@ public:
     explicit OrderHistoryWidget(QWidget *parent = nullptr);
     void clear();
     void saveColumnWidths();
+    void setAccount(const QString& account);
+    void setBalance(double balance);
 
 private:
     void setupTableColumns(QTableWidget *table);
