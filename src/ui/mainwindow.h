@@ -57,6 +57,7 @@ private slots:
     void onClose75();
     void onClose100();
     void onCancelOrders();
+    void onSplitterMoved();
 
 private:
     void setupUI();

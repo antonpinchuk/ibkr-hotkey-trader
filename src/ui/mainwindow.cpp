@@ -366,6 +366,11 @@ void MainWindow::setupConnections()
     // Ticker list
     connect(m_tickerList, &TickerListWidget::symbolSelected, this, &MainWindow::onSymbolSelected);
     connect(m_tickerList, &TickerListWidget::tickerLabelClicked, this, &MainWindow::onSymbolSearchRequested);
+
+    // Splitter state saving
+    connect(m_mainSplitter, &QSplitter::splitterMoved, this, &MainWindow::onSplitterMoved);
+    connect(m_rightSplitter, &QSplitter::splitterMoved, this, &MainWindow::onSplitterMoved);
+    connect(m_rightBottomSplitter, &QSplitter::splitterMoved, this, &MainWindow::onSplitterMoved);
 }
 
 void MainWindow::keyPressEvent(QKeyEvent *event)
@@ -602,6 +607,15 @@ void MainWindow::onCancelOrders()
     m_tradingManager->cancelAllOrders();
 }
 
+void MainWindow::onSplitterMoved()
+{
+    // Save splitter states whenever they are moved
+    UIState& uiState = UIState::instance();
+    uiState.saveSplitterSizes("main", m_mainSplitter->sizes());
+    uiState.saveSplitterSizes("right", m_rightSplitter->sizes());
+    uiState.saveSplitterSizes("right_bottom", m_rightBottomSplitter->sizes());
+}
+
 void MainWindow::showToast(const QString& message, const QString& type)
 {
     ToastNotification::Type toastType = ToastNotification::Info;
@@ -675,8 +689,8 @@ void MainWindow::restoreUIState()
     if (!mainSizes.isEmpty()) {
         m_mainSplitter->setSizes(mainSizes);
     } else {
-        // Default: ticker list 200px, rest takes remaining space
-        m_mainSplitter->setSizes(QList<int>() << 200 << 1200);
+        // Default: ticker list 100px, rest takes remaining space
+        m_mainSplitter->setSizes(QList<int>() << 100 << 1300);
     }
 
     QList<int> rightSizes = uiState.restoreSplitterSizes("right");
@@ -691,8 +705,8 @@ void MainWindow::restoreUIState()
     if (!rightBottomSizes.isEmpty()) {
         m_rightBottomSplitter->setSizes(rightBottomSizes);
     } else {
-        // Default: chart 800px, orders 400px
-        m_rightBottomSplitter->setSizes(QList<int>() << 800 << 400);
+        // Default: chart takes remaining space, orders 480px
+        m_rightBottomSplitter->setSizes(QList<int>() << 920 << 480);
     }
 }
 
