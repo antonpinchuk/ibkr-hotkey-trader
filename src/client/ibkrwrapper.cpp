@@ -32,17 +32,32 @@ void IBKRWrapper::error(int id, time_t errorTime, int errorCode, const std::stri
 {
     QString msg = QString::fromStdString(errorString);
 
-    // Log TWS errors (will be filtered for duplicates by Logger)
-    LOG_ERROR(QString("TWS Error [id=%1, code=%2]: %3").arg(id).arg(errorCode).arg(msg));
-
-    // Detect connection issues that require reconnect
+    // Filter informational "OK" status messages (not errors)
+    // 2104: Market data farm connection is OK
+    // 2106: HMDS data farm connection is OK
+    // 2158: Sec-def data farm connection is OK
+    if (errorCode == 2104 || errorCode == 2106 || errorCode == 2158) {
+        LOG_DEBUG(QString("TWS Status [code=%1]: %2").arg(errorCode).arg(msg));
+    }
+    // Filter connection status messages (handled by auto-reconnect)
     // 1100: Connectivity between IB and TWS has been lost
     // 1300: TWS socket port has been reset (relogin)
     // 2110: Connectivity between TWS and server is broken
-    if (errorCode == 1100 || errorCode == 1300 || errorCode == 2110) {
-        LOG_DEBUG(QString("Connection lost error detected (code %1), forcing disconnect and reconnect").arg(errorCode));
+    else if (errorCode == 1100 || errorCode == 1300 || errorCode == 2110) {
+        LOG_DEBUG(QString("Connection status [code=%1]: %2").arg(errorCode).arg(msg));
         // Force socket closure and trigger reconnect (don't stop reconnect timer)
         m_client->disconnect(false);
+    }
+    // Filter other informational messages
+    // 2105: Historical data farm connection is OK
+    // 2107: Historical data farm connection is inactive
+    // 2108: Market data farm connection is inactive
+    else if (errorCode >= 2105 && errorCode <= 2110) {
+        LOG_DEBUG(QString("TWS Status [code=%1]: %2").arg(errorCode).arg(msg));
+    }
+    // Actual errors - log as ERROR
+    else {
+        LOG_ERROR(QString("TWS Error [id=%1, code=%2]: %3").arg(id).arg(errorCode).arg(msg));
     }
 
     emit errorOccurred(id, errorCode, msg);
