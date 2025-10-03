@@ -253,6 +253,11 @@ int IBKRClient::placeOrder(const QString& symbol, const QString& action, int qua
     order.orderType = "LMT";
     order.lmtPrice = limitPrice;
 
+    // Initialize TagValue pointers to prevent crashes
+    order.algoParams.reset();
+    order.smartComboRoutingParams.reset();
+    order.orderMiscOptions.reset();
+
     int orderId = m_nextOrderId++;
     m_socket->placeOrder(orderId, contract, order);
 
