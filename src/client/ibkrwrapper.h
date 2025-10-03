@@ -3,6 +3,7 @@
 
 #include "DefaultEWrapper.h"
 #include <QObject>
+#include <QMap>
 #include <memory>
 
 class IBKRClient;
@@ -191,6 +192,7 @@ signals:
 
     void tickPriceReceived(int tickerId, int field, double price);
     void tickByTickReceived(int reqId, double price, double bidPrice, double askPrice);
+    void marketDataReceived(int tickerId, double lastPrice, double bidPrice, double askPrice);
 
     void historicalDataReceived(int reqId, long time, double open, double high, double low, double close, long volume);
     void historicalDataComplete(int reqId);
@@ -209,6 +211,17 @@ signals:
 
 private:
     IBKRClient *m_client;
+
+    // Cache for market data aggregation
+    struct MarketDataCache {
+        double lastPrice = 0.0;
+        double bidPrice = 0.0;
+        double askPrice = 0.0;
+        bool hasLast = false;
+        bool hasBid = false;
+        bool hasAsk = false;
+    };
+    QMap<int, MarketDataCache> m_marketDataCache;
 };
 
 #endif // IBKRWRAPPER_H

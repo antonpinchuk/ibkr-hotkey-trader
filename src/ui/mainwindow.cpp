@@ -10,6 +10,7 @@
 #include "ui/toastnotification.h"
 #include "models/settings.h"
 #include "models/uistate.h"
+#include "models/tickerdatamanager.h"
 #include "utils/logger.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -38,6 +39,7 @@ MainWindow::MainWindow(QWidget *parent)
     , m_symbolSearch(nullptr)
     , m_ibkrClient(nullptr)
     , m_tradingManager(nullptr)
+    , m_nextTickerId(1000)  // Start from 1000 to avoid conflicts
 {
     setWindowTitle("IBKR Hotkey Trader");
     resize(1400, 800);
@@ -45,8 +47,15 @@ MainWindow::MainWindow(QWidget *parent)
     // Initialize components
     m_ibkrClient = new IBKRClient(this);
     m_tradingManager = new TradingManager(m_ibkrClient, this);
+    m_tickerDataManager = new TickerDataManager(m_ibkrClient, this);
     m_settingsDialog = new SettingsDialog(this);
     m_symbolSearch = new SymbolSearchDialog(m_ibkrClient, this);
+
+    // Setup 10-second timer for inactive ticker updates
+    m_inactiveTickerTimer = new QTimer(this);
+    m_inactiveTickerTimer->setInterval(10000); // 10 seconds
+    connect(m_inactiveTickerTimer, &QTimer::timeout, this, &MainWindow::updateInactiveTickers);
+    m_inactiveTickerTimer->start();
 
     setupUI();
     setupConnections();
@@ -386,6 +395,9 @@ void MainWindow::setupConnections()
     connect(m_mainSplitter, &QSplitter::splitterMoved, this, &MainWindow::onSplitterMoved);
     connect(m_rightSplitter, &QSplitter::splitterMoved, this, &MainWindow::onSplitterMoved);
     connect(m_rightBottomSplitter, &QSplitter::splitterMoved, this, &MainWindow::onSplitterMoved);
+
+    // Price updates (use marketDataUpdated for free data)
+    connect(m_ibkrClient, &IBKRClient::marketDataUpdated, this, &MainWindow::onTickByTickUpdated);
 }
 
 void MainWindow::keyPressEvent(QKeyEvent *event)
@@ -462,6 +474,15 @@ void MainWindow::onSymbolSearchRequested()
 void MainWindow::onSymbolSelected(const QString& symbol)
 {
     // TODO: Check if there are open positions before switching
+
+    // Cancel old ticker data stream if switching symbols
+    if (!m_currentSymbol.isEmpty() && m_currentSymbol != symbol) {
+        if (m_symbolToTickerId.contains(m_currentSymbol)) {
+            int oldTickerId = m_symbolToTickerId[m_currentSymbol];
+            m_ibkrClient->cancelMarketData(oldTickerId);
+        }
+    }
+
     m_currentSymbol = symbol;
     m_tickerList->setTickerLabel(symbol);
 
@@ -469,7 +490,21 @@ void MainWindow::onSymbolSelected(const QString& symbol)
     m_tickerList->addSymbol(symbol);
     m_tickerList->setCurrentSymbol(symbol);
 
-    // Request market data
+    // Get or create ticker ID for this symbol
+    int tickerId;
+    if (m_symbolToTickerId.contains(symbol)) {
+        tickerId = m_symbolToTickerId[symbol];
+    } else {
+        tickerId = m_nextTickerId++;
+        m_symbolToTickerId[symbol] = tickerId;
+        m_tickerIdToSymbol[tickerId] = symbol;
+
+        // Add to ticker data manager (will load historical bars)
+        m_tickerDataManager->addTicker(symbol);
+    }
+
+    // Request market data for this symbol (using reqMktData for free data)
+    m_ibkrClient->requestMarketData(tickerId, symbol);
     m_chart->setSymbol(symbol);
     m_tradingManager->setSymbol(symbol);
 }
@@ -769,4 +804,74 @@ void MainWindow::closeEvent(QCloseEvent *event)
 {
     saveUIState();
     QMainWindow::closeEvent(event);
+}
+
+void MainWindow::onTickByTickUpdated(int reqId, double price, double bidPrice, double askPrice)
+{
+    // Find which symbol this reqId belongs to
+    if (!m_tickerIdToSymbol.contains(reqId)) {
+        LOG_DEBUG(QString("onTickByTickUpdated: Unknown reqId=%1").arg(reqId));
+        return;
+    }
+
+    QString symbol = m_tickerIdToSymbol[reqId];
+
+    // Calculate the price to display (use mid price if bid/ask available, otherwise use price)
+    double displayPrice = price;
+    if (bidPrice > 0 && askPrice > 0) {
+        displayPrice = (bidPrice + askPrice) / 2.0;
+    } else if (price > 0) {
+        displayPrice = price;
+    } else {
+        // No valid price data
+        LOG_DEBUG(QString("onTickByTickUpdated: No valid price data for %1").arg(symbol));
+        return;
+    }
+
+    // Initialize 10-second-ago price if this is first update
+    if (!m_tenSecondAgoPrices.contains(symbol)) {
+        m_tenSecondAgoPrices[symbol] = displayPrice;
+    }
+
+    // Store the current price
+    m_lastPrices[symbol] = displayPrice;
+
+    // Update current bar in TickerDataManager
+    m_tickerDataManager->updateCurrentBar(symbol, displayPrice);
+
+    // Calculate change percent from 10 seconds ago (use bars from TickerDataManager)
+    double changePercent = 0.0;
+    const QVector<CandleBar>* bars = m_tickerDataManager->getBars(symbol);
+    if (bars && !bars->isEmpty()) {
+        // Compare current price with price from 10 seconds ago (1 bar ago)
+        if (bars->size() >= 2) {
+            double oldPrice = (*bars)[bars->size() - 2].close;
+            if (oldPrice > 0) {
+                changePercent = ((displayPrice - oldPrice) / oldPrice) * 100.0;
+            }
+        }
+    } else if (m_tenSecondAgoPrices.contains(symbol)) {
+        // Fallback to old method if bars not loaded yet
+        double oldPrice = m_tenSecondAgoPrices[symbol];
+        if (oldPrice > 0) {
+            changePercent = ((displayPrice - oldPrice) / oldPrice) * 100.0;
+        }
+    }
+
+    // Update the ticker list widget
+    m_tickerList->updateTickerPrice(symbol, displayPrice, changePercent);
+}
+
+void MainWindow::updateInactiveTickers()
+{
+    // Every 10 seconds:
+    // 1. Update the "10 seconds ago" price snapshot
+    // 2. Request snapshot data for inactive tickers
+
+    // Update the 10-second-ago snapshot for all tickers
+    m_tenSecondAgoPrices = m_lastPrices;
+
+    // TODO: For inactive tickers, we could request snapshot market data
+    // For now, they will only update when they become active
+    // In future, we can use reqMktData with snapshot=true for inactive tickers
 }

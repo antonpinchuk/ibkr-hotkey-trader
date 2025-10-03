@@ -33,7 +33,19 @@ void TickerItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &op
 
     // Format text
     QString priceText = QString("$%1").arg(price, 0, 'f', 2);
-    QString changeText = QString("%1%2%").arg(changePercent >= 0 ? "+" : "").arg(changePercent, 0, 'f', 1);
+
+    // Format change percent with dynamic precision (max 3 decimal places)
+    QString changeText;
+    if (qAbs(changePercent) < 0.01) {
+        // Very small changes: show 3 decimals
+        changeText = QString("%1%2%").arg(changePercent >= 0 ? "+" : "").arg(changePercent, 0, 'f', 3);
+    } else if (qAbs(changePercent) < 0.1) {
+        // Small changes: show 2 decimals
+        changeText = QString("%1%2%").arg(changePercent >= 0 ? "+" : "").arg(changePercent, 0, 'f', 2);
+    } else {
+        // Larger changes: show 1 decimal
+        changeText = QString("%1%2%").arg(changePercent >= 0 ? "+" : "").arg(changePercent, 0, 'f', 1);
+    }
 
     // Calculate positions
     int x = option.rect.x() + 8;

@@ -115,6 +115,8 @@ set(SOURCES
     src/models/uistate.h
     src/models/order.cpp
     src/models/order.h
+    src/models/tickerdatamanager.cpp
+    src/models/tickerdatamanager.h
     # Utils
     src/utils/logger.cpp
     src/utils/logger.h

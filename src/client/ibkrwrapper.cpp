@@ -66,6 +66,25 @@ void IBKRWrapper::error(int id, time_t errorTime, int errorCode, const std::stri
 void IBKRWrapper::tickPrice(TickerId tickerId, TickType field, double price, const TickAttrib& attrib)
 {
     emit tickPriceReceived(tickerId, field, price);
+
+    // Aggregate market data: LAST=4, BID=1, ASK=2
+    auto& cache = m_marketDataCache[tickerId];
+
+    if (field == 4) {  // LAST
+        cache.lastPrice = price;
+        cache.hasLast = true;
+    } else if (field == 1) {  // BID
+        cache.bidPrice = price;
+        cache.hasBid = true;
+    } else if (field == 2) {  // ASK
+        cache.askPrice = price;
+        cache.hasAsk = true;
+    }
+
+    // Emit aggregated signal when we have all three prices
+    if (cache.hasLast && cache.hasBid && cache.hasAsk) {
+        emit marketDataReceived(tickerId, cache.lastPrice, cache.bidPrice, cache.askPrice);
+    }
 }
 
 void IBKRWrapper::tickSize(TickerId tickerId, TickType field, Decimal size)
@@ -91,6 +110,7 @@ void IBKRWrapper::tickByTickAllLast(int reqId, int tickType, time_t time, double
 
 void IBKRWrapper::tickByTickBidAsk(int reqId, time_t time, double bidPrice, double askPrice, Decimal bidSize, Decimal askSize, const TickAttribBidAsk& tickAttribBidAsk)
 {
+    LOG_DEBUG(QString("tickByTickBidAsk [reqId=%1]: bid=%2, ask=%3").arg(reqId).arg(bidPrice).arg(askPrice));
     emit tickByTickReceived(reqId, 0, bidPrice, askPrice);
 }
 

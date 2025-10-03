@@ -86,6 +86,21 @@ void TickerListWidget::setTickerLabel(const QString& symbol)
     m_tickerLabel->setText(symbol);
 }
 
+void TickerListWidget::updateTickerPrice(const QString& symbol, double price, double changePercent)
+{
+    // Find the item with this symbol and update its price and change percent
+    for (int i = 0; i < m_listWidget->count(); ++i) {
+        QListWidgetItem *item = m_listWidget->item(i);
+        if (item->data(TickerItemDelegate::SymbolRole).toString() == symbol) {
+            item->setData(TickerItemDelegate::PriceRole, price);
+            item->setData(TickerItemDelegate::ChangePercentRole, changePercent);
+            // Trigger repaint
+            m_listWidget->viewport()->update();
+            break;
+        }
+    }
+}
+
 void TickerListWidget::clear()
 {
     m_listWidget->clear();

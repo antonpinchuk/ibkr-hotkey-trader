@@ -56,6 +56,7 @@ signals:
 
     void tickPriceUpdated(int tickerId, int field, double price);
     void tickByTickUpdated(int reqId, double price, double bidPrice, double askPrice);
+    void marketDataUpdated(int tickerId, double lastPrice, double bidPrice, double askPrice);
 
     void historicalBarReceived(int reqId, long time, double open, double high, double low, double close, long volume);
     void historicalDataFinished(int reqId);

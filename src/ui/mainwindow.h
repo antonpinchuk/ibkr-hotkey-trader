@@ -6,6 +6,8 @@
 #include <QPushButton>
 #include <QToolBar>
 #include <QSplitter>
+#include <QTimer>
+#include <QMap>
 
 class IBKRClient;
 class TradingManager;
@@ -16,6 +18,7 @@ class SettingsDialog;
 class SymbolSearchDialog;
 class ToastNotification;
 class DebugLogDialog;
+class TickerDataManager;
 
 class MainWindow : public QMainWindow
 {
@@ -60,6 +63,10 @@ private slots:
     void onClose100();
     void onCancelOrders();
     void onSplitterMoved();
+
+    // Price update slots
+    void onTickByTickUpdated(int reqId, double price, double bidPrice, double askPrice);
+    void updateInactiveTickers();
 
 private:
     void setupUI();
@@ -114,8 +121,19 @@ private:
     // Business logic
     IBKRClient *m_ibkrClient;
     TradingManager *m_tradingManager;
+    TickerDataManager *m_tickerDataManager;
 
     QString m_currentSymbol;
+
+    // Price tracking
+    QTimer *m_inactiveTickerTimer;
+    QMap<QString, double> m_lastPrices;          // symbol -> last price
+    QMap<QString, double> m_tenSecondAgoPrices;  // symbol -> price 10 seconds ago
+
+    // Ticker ID management
+    int m_nextTickerId;
+    QMap<QString, int> m_symbolToTickerId;       // symbol -> tickerId
+    QMap<int, QString> m_tickerIdToSymbol;       // tickerId -> symbol
 };
 
 #endif // MAINWINDOW_H

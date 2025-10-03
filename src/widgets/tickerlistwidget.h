@@ -15,6 +15,7 @@ public:
     void addSymbol(const QString& symbol);
     void setCurrentSymbol(const QString& symbol);
     void setTickerLabel(const QString& symbol);
+    void updateTickerPrice(const QString& symbol, double price, double changePercent);
     void clear();
 
 signals:

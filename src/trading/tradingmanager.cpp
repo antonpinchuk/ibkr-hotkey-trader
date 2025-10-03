@@ -44,9 +44,8 @@ void TradingManager::setSymbol(const QString& symbol)
 
     m_currentSymbol = symbol;
 
-    // Cancel previous symbol's data stream and orders
+    // Start sell order monitor for new symbol
     if (!symbol.isEmpty()) {
-        m_client->requestTickByTick(1, symbol);
         m_sellOrderMonitor->start();
     }
 }
