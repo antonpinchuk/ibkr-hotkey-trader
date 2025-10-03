@@ -130,8 +130,8 @@ public:
     // Family Codes - Not used but must be implemented
     void familyCodes(const std::vector<FamilyCode>& familyCodes) override {}
 
-    // Symbol Samples - Not used but must be implemented
-    void symbolSamples(int reqId, const std::vector<ContractDescription>& contractDescriptions) override {}
+    // Symbol Samples
+    void symbolSamples(int reqId, const std::vector<ContractDescription>& contractDescriptions) override;
 
     // Market Rule - Not used but must be implemented
     void mktDepthExchanges(const std::vector<DepthMktDataDescription>& depthMktDataDescriptions) override {}
@@ -205,6 +205,7 @@ signals:
 
     void contractDetailsReceived(int reqId, const QString& symbol, const QString& exchange, int conId);
     void symbolSearchResults(int reqId, const QStringList& symbols);
+    void symbolSamplesReceived(int reqId, const QList<QPair<QString, QPair<QString, QString>>>& results); // symbol, (company name, exchange)
 
 private:
     IBKRClient *m_client;

@@ -68,6 +68,7 @@ signals:
 
     void accountsReceived(const QString& accounts);
     void symbolFound(int reqId, const QString& symbol, const QString& exchange, int conId);
+    void symbolSearchResultsReceived(int reqId, const QList<QPair<QString, QPair<QString, QString>>>& results);
     void activeAccountChanged(const QString& account);
 
 private slots:

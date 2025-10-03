@@ -98,6 +98,7 @@ void IBKRClient::setupSignals()
         emit accountsReceived(accounts);
     });
     QObject::connect(m_wrapper.get(), &IBKRWrapper::contractDetailsReceived, this, &IBKRClient::symbolFound);
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::symbolSamplesReceived, this, &IBKRClient::symbolSearchResultsReceived);
 }
 
 void IBKRClient::connect(const QString& host, int port, int clientId)
@@ -296,11 +297,6 @@ void IBKRClient::searchSymbol(int reqId, const QString& pattern)
 {
     if (!m_socket->isConnected()) return;
 
-    Contract contract;
-    contract.symbol = pattern.toStdString();
-    contract.secType = "STK";
-    contract.exchange = "SMART";
-    contract.currency = "USD";
-
-    m_socket->reqContractDetails(reqId, contract);
+    // Use reqMatchingSymbols for flexible pattern-based search
+    m_socket->reqMatchingSymbols(reqId, pattern.toStdString());
 }

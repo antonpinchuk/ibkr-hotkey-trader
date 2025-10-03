@@ -199,3 +199,40 @@ void IBKRWrapper::managedAccounts(const std::string& accountsList)
     qDebug() << "Managed accounts:" << QString::fromStdString(accountsList);
     emit managedAccountsReceived(QString::fromStdString(accountsList));
 }
+
+void IBKRWrapper::symbolSamples(int reqId, const std::vector<ContractDescription>& contractDescriptions)
+{
+    QList<QPair<QString, QPair<QString, QString>>> results;
+
+    for (const auto& desc : contractDescriptions) {
+        // Only include stocks
+        if (desc.contract.secType != "STK") {
+            continue;
+        }
+
+        QString symbol = QString::fromStdString(desc.contract.symbol);
+
+        // Get company name from description field
+        QString companyName;
+        if (!desc.contract.description.empty()) {
+            companyName = QString::fromStdString(desc.contract.description);
+        } else if (!desc.contract.localSymbol.empty()) {
+            companyName = QString::fromStdString(desc.contract.localSymbol);
+        } else {
+            companyName = symbol;
+        }
+
+        // Get primary exchange
+        QString exchange;
+        if (!desc.contract.primaryExchange.empty()) {
+            exchange = QString::fromStdString(desc.contract.primaryExchange);
+        } else {
+            exchange = QString::fromStdString(desc.contract.exchange);
+        }
+
+        results.append(qMakePair(symbol, qMakePair(companyName, exchange)));
+    }
+
+    qDebug() << "Symbol samples received for reqId:" << reqId << "count:" << results.size();
+    emit symbolSamplesReceived(reqId, results);
+}
