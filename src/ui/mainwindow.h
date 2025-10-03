@@ -68,6 +68,9 @@ private slots:
     void onTickByTickUpdated(int reqId, double price, double bidPrice, double askPrice);
     void updateInactiveTickers();
 
+    // Error handling
+    void onMarketDataError(int tickerId);
+
 private:
     void setupUI();
     void setupMenuBar();
@@ -124,6 +127,8 @@ private:
     TickerDataManager *m_tickerDataManager;
 
     QString m_currentSymbol;
+    QString m_previousSymbol;  // Track previous symbol for rollback on error
+    QString m_pendingSymbol;   // Symbol waiting for market data confirmation
 
     // Price tracking
     QTimer *m_inactiveTickerTimer;

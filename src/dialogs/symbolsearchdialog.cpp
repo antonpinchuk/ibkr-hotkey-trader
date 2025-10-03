@@ -67,6 +67,8 @@ SymbolSearchDialog::SymbolSearchDialog(IBKRClient *client, QWidget *parent)
     : QDialog(parent)
     , m_client(client)
     , m_currentReqId(1000)
+    , m_pendingEnterReqId(-1)
+    , m_pendingEnter(false)
 {
     setWindowTitle("Symbol Search");
     resize(700, 450);
@@ -90,7 +92,7 @@ SymbolSearchDialog::SymbolSearchDialog(IBKRClient *client, QWidget *parent)
     // Setup search timer for debounce
     m_searchTimer = new QTimer(this);
     m_searchTimer->setSingleShot(true);
-    m_searchTimer->setInterval(650); // 650ms debounce
+    m_searchTimer->setInterval(450); // 450ms debounce
 
     connect(m_searchEdit, &QLineEdit::textChanged,
             this, &SymbolSearchDialog::onSearchTextChanged);
@@ -107,6 +109,7 @@ SymbolSearchDialog::SymbolSearchDialog(IBKRClient *client, QWidget *parent)
 void SymbolSearchDialog::onSearchTextChanged(const QString& text)
 {
     m_searchTimer->stop();
+    m_pendingEnter = false;  // Clear pending enter on new input
 
     if (text.isEmpty()) {
         m_resultsWidget->clear();
@@ -131,19 +134,27 @@ void SymbolSearchDialog::performSearch()
     QString searchText = m_searchEdit->text().trimmed();
     if (searchText.isEmpty()) return;
 
-    m_resultsWidget->clear();
-    m_resultsWidget->addItem("Searching...");
-
+    // Don't clear list - keep previous results while searching
     m_client->searchSymbol(m_currentReqId++, searchText);
 }
 
 void SymbolSearchDialog::onSymbolSearchResults(int reqId, const QList<QPair<QString, QPair<QString, QString>>>& results)
 {
+    // Check if this is an old result we don't care about anymore
+    if (m_pendingEnter && reqId != m_pendingEnterReqId) {
+        // Ignore old results, waiting for the Enter request
+        return;
+    }
+
     m_resultsWidget->clear();
     m_searchResults.clear();
 
     if (results.isEmpty()) {
         m_resultsWidget->addItem("No results found");
+        if (reqId == m_pendingEnterReqId) {
+            m_pendingEnter = false;  // Clear pending enter
+            m_pendingEnterReqId = -1;
+        }
         return;
     }
 
@@ -161,6 +172,16 @@ void SymbolSearchDialog::onSymbolSearchResults(int reqId, const QList<QPair<QStr
     // Select first item
     if (m_resultsWidget->count() > 0) {
         m_resultsWidget->setCurrentRow(0);
+
+        // If this is the request we're waiting for after Enter, auto-select first result
+        if (m_pendingEnter && reqId == m_pendingEnterReqId) {
+            m_pendingEnter = false;
+            m_pendingEnterReqId = -1;
+            QListWidgetItem *firstItem = m_resultsWidget->item(0);
+            if (firstItem) {
+                onItemActivated(firstItem);
+            }
+        }
     }
 }
 
@@ -199,10 +220,25 @@ bool SymbolSearchDialog::eventFilter(QObject *obj, QEvent *event)
             }
             return true; // Keep focus on search edit
         } else if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
-            // Select current item
+            QString searchText = m_searchEdit->text().trimmed();
+
+            // Select current item if exists and matches current search text
             QListWidgetItem *currentItem = m_resultsWidget->currentItem();
-            if (currentItem) {
-                onItemActivated(currentItem);
+            if (currentItem && m_resultsWidget->count() > 0 && !m_searchResults.isEmpty()) {
+                // Check if first result matches search text (approximate match)
+                if (!m_searchResults.isEmpty() &&
+                    m_searchResults[0].symbol.startsWith(searchText, Qt::CaseInsensitive)) {
+                    onItemActivated(currentItem);
+                    return true;
+                }
+            }
+
+            // No matching results or text changed - trigger immediate search
+            if (!searchText.isEmpty()) {
+                m_searchTimer->stop();  // Cancel pending search
+                m_pendingEnter = true;
+                m_pendingEnterReqId = m_currentReqId;  // Remember which request we're waiting for
+                performSearch();  // Start search immediately
                 return true;
             }
         }

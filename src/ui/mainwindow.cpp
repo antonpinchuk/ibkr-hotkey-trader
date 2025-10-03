@@ -398,6 +398,29 @@ void MainWindow::setupConnections()
 
     // Price updates (use marketDataUpdated for free data)
     connect(m_ibkrClient, &IBKRClient::marketDataUpdated, this, &MainWindow::onTickByTickUpdated);
+
+    // Error handling for market data subscription issues
+    connect(m_ibkrClient, &IBKRClient::error, this, [this](int id, int code, const QString& message) {
+        // Market data subscription errors: 10089, 10168, 354, 10197, 10167, 162
+        if (code == 10089 || code == 10168 || code == 354 || code == 10197 || code == 10167 || code == 162) {
+            LOG_DEBUG(QString("Market data subscription error: id=%1, code=%2, pending=%3")
+                .arg(id).arg(code).arg(m_pendingSymbol));
+
+            // Check if we have a pending symbol (just added, waiting for data)
+            if (!m_pendingSymbol.isEmpty()) {
+                // Find ticker ID for pending symbol
+                if (m_symbolToTickerId.contains(m_pendingSymbol)) {
+                    int tickerId = m_symbolToTickerId[m_pendingSymbol];
+                    onMarketDataError(tickerId);
+                    m_pendingSymbol.clear();
+                }
+            }
+            // Or check if this error is for a ticker we're tracking (legacy check)
+            else if (m_tickerIdToSymbol.contains(id)) {
+                onMarketDataError(id);
+            }
+        }
+    });
 }
 
 void MainWindow::keyPressEvent(QKeyEvent *event)
@@ -475,38 +498,35 @@ void MainWindow::onSymbolSelected(const QString& symbol)
 {
     // TODO: Check if there are open positions before switching
 
-    // Cancel old ticker data stream if switching symbols
-    if (!m_currentSymbol.isEmpty() && m_currentSymbol != symbol) {
-        if (m_symbolToTickerId.contains(m_currentSymbol)) {
-            int oldTickerId = m_symbolToTickerId[m_currentSymbol];
-            m_ibkrClient->cancelMarketData(oldTickerId);
-        }
-    }
-
-    m_currentSymbol = symbol;
-    m_tickerList->setTickerLabel(symbol);
-
-    // Add to ticker list and select it
-    m_tickerList->addSymbol(symbol);
-    m_tickerList->setCurrentSymbol(symbol);
-
     // Get or create ticker ID for this symbol
     int tickerId;
+
     if (m_symbolToTickerId.contains(symbol)) {
+        // Existing symbol - just switch UI, market data already running
         tickerId = m_symbolToTickerId[symbol];
+
+        m_currentSymbol = symbol;
+        m_tickerList->setTickerLabel(symbol);
+        m_tickerList->setCurrentSymbol(symbol);
+        m_chart->setSymbol(symbol);
+        m_tradingManager->setSymbol(symbol);
+
+        // Note: Don't restart market data - it's already running for this symbol
     } else {
+        // New symbol - mark as pending and wait for data confirmation
+        // Don't cancel old market data yet - wait until new symbol is confirmed
         tickerId = m_nextTickerId++;
         m_symbolToTickerId[symbol] = tickerId;
         m_tickerIdToSymbol[tickerId] = symbol;
+        m_pendingSymbol = symbol;
+        m_previousSymbol = m_currentSymbol;  // Save current symbol
 
         // Add to ticker data manager (will load historical bars)
         m_tickerDataManager->addTicker(symbol);
-    }
 
-    // Request market data for this symbol (using reqMktData for free data)
-    m_ibkrClient->requestMarketData(tickerId, symbol);
-    m_chart->setSymbol(symbol);
-    m_tradingManager->setSymbol(symbol);
+        // Request market data for new symbol
+        m_ibkrClient->requestMarketData(tickerId, symbol);
+    }
 }
 
 void MainWindow::onSettingsClicked()
@@ -584,6 +604,17 @@ void MainWindow::onError(int id, int code, const QString& message)
     }
     if (code == 2158) {
         return; // Ignore sec-def data farm status messages
+    }
+
+    // Market data subscription errors - handled by onMarketDataError
+    if (code == 10089 || code == 10168 || code == 354 || code == 10197 || code == 10167 || code == 162) {
+        return; // Handled separately with custom message
+    }
+
+    // Error 300: Can't find EId - happens when trying to cancel failed market data
+    // Error 322: Duplicate ticker id - happens when trying to restart already active market data
+    if (code == 300 || code == 322) {
+        return; // Side effect errors, not informative
     }
 
     // Only show toast for actual errors
@@ -800,6 +831,51 @@ void MainWindow::saveUIState()
     uiState.saveSplitterSizes("right_bottom", m_rightBottomSplitter->sizes());
 }
 
+void MainWindow::onMarketDataError(int tickerId)
+{
+    if (!m_tickerIdToSymbol.contains(tickerId)) {
+        return;
+    }
+
+    QString failedSymbol = m_tickerIdToSymbol[tickerId];
+
+    LOG_DEBUG(QString("Market data error for ticker %1 (id=%2)").arg(failedSymbol).arg(tickerId));
+
+    // Remove failed ticker from all tracking structures
+    m_tickerIdToSymbol.remove(tickerId);
+    m_symbolToTickerId.remove(failedSymbol);
+
+    // Note: Don't call cancelMarketData - TWS never created this ticker ID due to subscription error
+
+    // Check if this was a pending symbol (new symbol waiting for data)
+    if (failedSymbol == m_pendingSymbol) {
+        // Simply clear pending - don't add to UI at all
+        m_pendingSymbol.clear();
+
+        // Current symbol stays unchanged (no rollback needed since we never switched)
+        // Show error message to user
+        showToast(QString("No market data subscription for %1. Subscribe in IBKR Account Management.").arg(failedSymbol), "error");
+    }
+    // If it's current symbol that already exists (shouldn't happen normally)
+    else if (m_currentSymbol == failedSymbol) {
+        m_tickerList->removeSymbol(failedSymbol);
+
+        if (!m_previousSymbol.isEmpty()) {
+            // Restore previous symbol
+            m_currentSymbol = m_previousSymbol;
+            m_tickerList->setTickerLabel(m_previousSymbol);
+            m_tickerList->setCurrentSymbol(m_previousSymbol);
+            m_chart->setSymbol(m_previousSymbol);
+            m_tradingManager->setSymbol(m_previousSymbol);
+        } else {
+            m_currentSymbol.clear();
+            m_tickerList->setTickerLabel("N/A");
+        }
+
+        showToast(QString("Lost market data for %1").arg(failedSymbol), "error");
+    }
+}
+
 void MainWindow::closeEvent(QCloseEvent *event)
 {
     saveUIState();
@@ -815,6 +891,25 @@ void MainWindow::onTickByTickUpdated(int reqId, double price, double bidPrice, d
     }
 
     QString symbol = m_tickerIdToSymbol[reqId];
+
+    // Check if this is first successful data for pending symbol
+    if (symbol == m_pendingSymbol) {
+        // Data confirmed! Cancel old market data and switch to new symbol
+        if (!m_previousSymbol.isEmpty() && m_symbolToTickerId.contains(m_previousSymbol)) {
+            int oldTickerId = m_symbolToTickerId[m_previousSymbol];
+            m_ibkrClient->cancelMarketData(oldTickerId);
+        }
+
+        // Add to UI and make current
+        m_currentSymbol = symbol;
+        m_tickerList->setTickerLabel(symbol);
+        m_tickerList->addSymbol(symbol);
+        m_tickerList->setCurrentSymbol(symbol);
+        m_chart->setSymbol(symbol);
+        m_tradingManager->setSymbol(symbol);
+        m_pendingSymbol.clear();
+        m_previousSymbol.clear();
+    }
 
     // Calculate the price to display (use mid price if bid/ask available, otherwise use price)
     double displayPrice = price;

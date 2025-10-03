@@ -55,6 +55,18 @@ void TickerListWidget::addSymbol(const QString& symbol)
     m_listWidget->insertItem(0, item);
 }
 
+void TickerListWidget::removeSymbol(const QString& symbol)
+{
+    // Find and remove item with this symbol
+    for (int i = 0; i < m_listWidget->count(); ++i) {
+        QListWidgetItem *item = m_listWidget->item(i);
+        if (item->data(TickerItemDelegate::SymbolRole).toString() == symbol) {
+            delete m_listWidget->takeItem(i);
+            break;
+        }
+    }
+}
+
 void TickerListWidget::setCurrentSymbol(const QString& symbol)
 {
     m_currentSymbol = symbol;

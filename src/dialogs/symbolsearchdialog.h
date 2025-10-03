@@ -59,8 +59,10 @@ private:
     QListWidget *m_resultsWidget;
     QTimer *m_searchTimer;
     int m_currentReqId;
+    int m_pendingEnterReqId;  // Request ID we're waiting for after Enter
     QList<SymbolSearchResult> m_searchResults;
     SearchResultDelegate *m_delegate;
+    bool m_pendingEnter;  // True if user pressed Enter while searching
 };
 
 #endif // SYMBOLSEARCHDIALOG_H

@@ -13,6 +13,7 @@ class TickerListWidget : public QWidget
 public:
     explicit TickerListWidget(QWidget *parent = nullptr);
     void addSymbol(const QString& symbol);
+    void removeSymbol(const QString& symbol);
     void setCurrentSymbol(const QString& symbol);
     void setTickerLabel(const QString& symbol);
     void updateTickerPrice(const QString& symbol, double price, double changePercent);

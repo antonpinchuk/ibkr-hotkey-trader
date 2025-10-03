@@ -167,34 +167,15 @@ QString TickerDataManager::getHistoricalDataEndTime() const
 
 void TickerDataManager::requestHistoricalBars(const QString& symbol, int reqId)
 {
-    // Request 10-second bars from start of today (including pre-market)
-    // Pre-market starts at 4:00 AM ET, regular market at 9:30 AM ET
-    // We'll request from 4:00 AM to now
+    // Request 10-second bars
+    // For 10-second bars, IBKR has limitations - max ~2 hours of data
+    // We'll request the last 2 hours
 
-    QDateTime now = QDateTime::currentDateTime();
-    QTime preMarketStart(4, 0, 0);  // 4:00 AM
-
-    QDateTime startOfDay = QDateTime(now.date(), preMarketStart);
-    qint64 secondsSinceStart = startOfDay.secsTo(now);
-
-    // Calculate duration string
-    QString duration;
-    if (secondsSinceStart < 3600) {
-        // Less than 1 hour
-        duration = QString("%1 S").arg(secondsSinceStart);
-    } else {
-        // Convert to hours
-        int hours = secondsSinceStart / 3600;
-        if (hours > 24) {
-            hours = 24;  // Max 24 hours
-        }
-        duration = QString("%1 H").arg(hours);
-    }
-
-    QString endTime = getHistoricalDataEndTime();
+    QString endTime = getHistoricalDataEndTime();  // Empty = now
+    QString duration = "7200 S";  // 2 hours in seconds
     QString barSize = "10 secs";
 
-    LOG_DEBUG(QString("Requesting historical data for %1: duration=%2").arg(symbol).arg(duration));
+    LOG_DEBUG(QString("Requesting historical data for %1: duration=%2, barSize=%3").arg(symbol).arg(duration).arg(barSize));
 
     m_client->requestHistoricalData(reqId, symbol, endTime, duration, barSize);
 }
