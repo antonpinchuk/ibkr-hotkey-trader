@@ -97,6 +97,8 @@ void DebugLogDialog::setupUI() {
     m_tableWidget->verticalHeader()->setVisible(false);
     m_tableWidget->horizontalHeader()->setStretchLastSection(true);
     m_tableWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+    m_tableWidget->setWordWrap(true); // Enable word wrap
+    m_tableWidget->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents); // Auto-resize row height
 
     // Connect context menu
     connect(m_tableWidget, &QTableWidget::customContextMenuRequested,
@@ -237,15 +239,18 @@ void DebugLogDialog::refreshTable() {
 void DebugLogDialog::addLogToTable(const LogEntry& entry, int row) {
     // Timestamp
     auto* timestampItem = new QTableWidgetItem(entry.timestamp.toString("yyyy-MM-dd HH:mm:ss.zzz"));
+    timestampItem->setTextAlignment(Qt::AlignTop | Qt::AlignLeft);
     m_tableWidget->setItem(row, 0, timestampItem);
 
     // Level
     auto* levelItem = new QTableWidgetItem(levelToString(entry.level));
     levelItem->setForeground(QBrush(levelToColor(entry.level)));
+    levelItem->setTextAlignment(Qt::AlignTop | Qt::AlignLeft);
     m_tableWidget->setItem(row, 1, levelItem);
 
     // Source
     auto* sourceItem = new QTableWidgetItem(entry.source);
+    sourceItem->setTextAlignment(Qt::AlignTop | Qt::AlignLeft);
     m_tableWidget->setItem(row, 2, sourceItem);
 
     // Message (with repeat count if > 0)
@@ -254,6 +259,7 @@ void DebugLogDialog::addLogToTable(const LogEntry& entry, int row) {
         messageText += QString(" (repeated %1x)").arg(entry.repeatCount + 1);
     }
     auto* messageItem = new QTableWidgetItem(messageText);
+    messageItem->setTextAlignment(Qt::AlignTop | Qt::AlignLeft);
     m_tableWidget->setItem(row, 3, messageItem);
 }
 
