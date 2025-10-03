@@ -2,6 +2,7 @@
 #include "client/ibkrclient.h"
 #include <QVBoxLayout>
 #include <QKeyEvent>
+#include <QShowEvent>
 #include <QLabel>
 #include <QFontMetrics>
 
@@ -89,7 +90,7 @@ SymbolSearchDialog::SymbolSearchDialog(IBKRClient *client, QWidget *parent)
     // Setup search timer for debounce
     m_searchTimer = new QTimer(this);
     m_searchTimer->setSingleShot(true);
-    m_searchTimer->setInterval(300); // 300ms debounce
+    m_searchTimer->setInterval(650); // 650ms debounce
 
     connect(m_searchEdit, &QLineEdit::textChanged,
             this, &SymbolSearchDialog::onSearchTextChanged);
@@ -208,4 +209,13 @@ bool SymbolSearchDialog::eventFilter(QObject *obj, QEvent *event)
     }
 
     return QDialog::eventFilter(obj, event);
+}
+
+void SymbolSearchDialog::showEvent(QShowEvent *event)
+{
+    QDialog::showEvent(event);
+
+    // Select all text when dialog is shown
+    m_searchEdit->setFocus();
+    m_searchEdit->selectAll();
 }
