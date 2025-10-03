@@ -91,6 +91,7 @@ private:
     int m_nextOrderId;
     int m_reconnectAttempts;
     QString m_activeAccount;
+    bool m_disconnectLogged;
 };
 
 #endif // IBKRCLIENT_H

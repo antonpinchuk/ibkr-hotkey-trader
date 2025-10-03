@@ -1,5 +1,6 @@
 #include "client/ibkrclient.h"
 #include "../external/twsapi/source/cppclient/client/Order.h"
+#include "utils/logger.h"
 #include <QDebug>
 
 IBKRClient::IBKRClient(QObject *parent)
@@ -9,6 +10,7 @@ IBKRClient::IBKRClient(QObject *parent)
     , m_clientId(0)
     , m_nextOrderId(1)
     , m_activeAccount("N/A")
+    , m_disconnectLogged(false)
 {
     m_wrapper = std::make_unique<IBKRWrapper>(this);
     m_signal = std::make_unique<EReaderOSSignal>();
@@ -33,14 +35,15 @@ IBKRClient::~IBKRClient()
 void IBKRClient::setupSignals()
 {
     QObject::connect(m_wrapper.get(), &IBKRWrapper::connected, this, [this]() {
-        qDebug() << "Connection acknowledged by TWS";
+        LOG_DEBUG("Connection acknowledged by TWS");
     });
 
     QObject::connect(m_wrapper.get(), &IBKRWrapper::apiReady, this, [this](int nextOrderId) {
         m_isConnected = true;
         m_reconnectTimer->stop();
         m_nextOrderId = nextOrderId;
-        qDebug() << "API ready, requesting managed accounts";
+        m_disconnectLogged = false; // Reset disconnect flag on successful connection
+        LOG_INFO(QString("TWS API ready, next order ID: %1").arg(nextOrderId));
         // Request managed accounts to get active account (after API is ready)
         requestManagedAccounts();
         emit connected();
@@ -65,7 +68,8 @@ void IBKRClient::setupSignals()
         if (!m_isConnected) {
             m_isConnected = true;
             m_reconnectTimer->stop();
-            qDebug() << "Connection established (via managedAccounts)";
+            m_disconnectLogged = false; // Reset disconnect flag on successful connection
+            LOG_INFO("Connection established via managedAccounts");
             emit connected();
         }
 
@@ -75,19 +79,19 @@ void IBKRClient::setupSignals()
             QString newAccount = accountList.first().trimmed();
             if (!newAccount.isEmpty()) {
                 m_activeAccount = newAccount;
-                qDebug() << "Active account set to:" << m_activeAccount;
+                LOG_INFO(QString("Active account set to: %1").arg(m_activeAccount));
                 emit activeAccountChanged(m_activeAccount);
                 // Request account updates to get balance
                 requestAccountUpdates(true, m_activeAccount);
             } else {
                 m_activeAccount = "N/A";
-                qDebug() << "No active account available from TWS";
+                LOG_WARNING("No active account available from TWS");
                 emit activeAccountChanged("N/A");
                 emit error(-1, 2104, "No account available. Check TWS login and permissions.");
             }
         } else {
             m_activeAccount = "N/A";
-            qDebug() << "No managed accounts received from TWS";
+            LOG_WARNING("No managed accounts received from TWS");
             emit activeAccountChanged("N/A");
             emit error(-1, 2104, "No account available. Check TWS login and permissions.");
         }
@@ -102,7 +106,7 @@ void IBKRClient::connect(const QString& host, int port, int clientId)
     m_port = port;
     m_clientId = clientId;
 
-    qDebug() << "Connecting to" << host << ":" << port << "clientId:" << clientId;
+    LOG_DEBUG(QString("Connecting to TWS at %1:%2 with clientId %3").arg(host).arg(port).arg(clientId));
 
     bool connected = m_socket->eConnect(host.toStdString().c_str(), port, clientId, false);
 
@@ -112,9 +116,9 @@ void IBKRClient::connect(const QString& host, int port, int clientId)
         m_reader->start();
 
         m_messageTimer->start();
-        qDebug() << "Connection initiated";
+        LOG_DEBUG("TWS connection initiated, waiting for API ready");
     } else {
-        qDebug() << "Connection failed";
+        // Don't log here - detailed error will come from IBKRWrapper
         // Don't emit error here - detailed error will come from IBKRWrapper
         m_reconnectTimer->start();
     }
@@ -145,6 +149,13 @@ void IBKRClient::disconnect(bool stopReconnect)
     m_isConnected = false;
     m_activeAccount = "N/A";
     emit activeAccountChanged("N/A");
+
+    // Log disconnect only once
+    if (!m_disconnectLogged) {
+        LOG_WARNING("Disconnected from TWS");
+        m_disconnectLogged = true;
+    }
+
     emit disconnected();
 
     if (!stopReconnect) {
@@ -163,7 +174,7 @@ void IBKRClient::processMessages()
 void IBKRClient::attemptReconnect()
 {
     if (!m_isConnected && !m_host.isEmpty()) {
-        qDebug() << "Attempting to reconnect...";
+        // Don't log every reconnect attempt to avoid spam
         // Ensure clean disconnect before reconnecting
         if (m_socket->isConnected()) {
             m_socket->eDisconnect();

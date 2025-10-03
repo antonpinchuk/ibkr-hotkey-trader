@@ -15,6 +15,7 @@ class OrderHistoryWidget;
 class SettingsDialog;
 class SymbolSearchDialog;
 class ToastNotification;
+class DebugLogDialog;
 
 class MainWindow : public QMainWindow
 {
@@ -34,6 +35,7 @@ private slots:
     void onSettingsClicked();
     void onResetSession();
     void onQuit();
+    void onDebugLogs();
 
     void onConnected();
     void onDisconnected();

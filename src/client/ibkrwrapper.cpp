@@ -1,5 +1,6 @@
 #include "client/ibkrwrapper.h"
 #include "client/ibkrclient.h"
+#include "utils/logger.h"
 #include "Execution.h"
 #include "Decimal.h"
 #include <QDebug>
@@ -30,14 +31,16 @@ void IBKRWrapper::nextValidId(OrderId orderId)
 void IBKRWrapper::error(int id, time_t errorTime, int errorCode, const std::string& errorString, const std::string& advancedOrderRejectJson)
 {
     QString msg = QString::fromStdString(errorString);
-    qDebug() << "Error [" << id << "][" << errorCode << "]:" << msg;
+
+    // Log TWS errors (will be filtered for duplicates by Logger)
+    LOG_ERROR(QString("TWS Error [id=%1, code=%2]: %3").arg(id).arg(errorCode).arg(msg));
 
     // Detect connection issues that require reconnect
     // 1100: Connectivity between IB and TWS has been lost
     // 1300: TWS socket port has been reset (relogin)
     // 2110: Connectivity between TWS and server is broken
     if (errorCode == 1100 || errorCode == 1300 || errorCode == 2110) {
-        qDebug() << "Connection lost error detected (code" << errorCode << "), forcing disconnect and reconnect";
+        LOG_DEBUG(QString("Connection lost error detected (code %1), forcing disconnect and reconnect").arg(errorCode));
         // Force socket closure and trigger reconnect (don't stop reconnect timer)
         m_client->disconnect(false);
     }

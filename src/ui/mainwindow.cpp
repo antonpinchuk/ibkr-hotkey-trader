@@ -6,9 +6,11 @@
 #include "widgets/orderhistorywidget.h"
 #include "dialogs/settingsdialog.h"
 #include "dialogs/symbolsearchdialog.h"
+#include "dialogs/debuglogdialog.h"
 #include "ui/toastnotification.h"
 #include "models/settings.h"
 #include "models/uistate.h"
+#include "utils/logger.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QMenuBar>
@@ -188,6 +190,7 @@ void MainWindow::setupMenuBar()
     connect(close100Action, &QAction::triggered, this, &MainWindow::onClose100);
 
     QMenu *helpMenu = menuBar()->addMenu("Help");
+
     QAction *helpAction = helpMenu->addAction("Help documentation");
     connect(helpAction, &QAction::triggered, [this]() {
         QMessageBox::information(this, "Help",
@@ -212,6 +215,11 @@ void MainWindow::setupMenuBar()
             "<li>Esc: Cancel all pending orders</li>"
             "</ul>");
     });
+
+    helpMenu->addSeparator();
+
+    QAction *debugAction = helpMenu->addAction("Debug");
+    connect(debugAction, &QAction::triggered, this, &MainWindow::onDebugLogs);
 }
 
 void MainWindow::setupToolbar()
@@ -502,14 +510,23 @@ void MainWindow::onQuit()
     }
 }
 
+void MainWindow::onDebugLogs()
+{
+    DebugLogDialog *dialog = new DebugLogDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->show();
+}
+
 void MainWindow::onConnected()
 {
+    LOG_INFO("Connected to TWS");
     showToast("Connected to TWS", "success");
     enableTrading(true);
 }
 
 void MainWindow::onDisconnected()
 {
+    // Don't log here - already logged in IBKRClient
     showToast("Disconnected from TWS. Reconnecting...", "error");
     enableTrading(false);
     m_orderHistory->setBalance(0.0);
@@ -517,6 +534,8 @@ void MainWindow::onDisconnected()
 
 void MainWindow::onError(int id, int code, const QString& message)
 {
+    // Note: All errors are already logged in IBKRWrapper, so we don't log here to avoid duplicates
+
     // Filter out informational TWS status messages (not actual errors)
     // 1100: Connectivity between IB and TWS lost (handled by reconnect)
     // 1300: TWS socket port reset - relogin (handled by reconnect)
@@ -532,6 +551,7 @@ void MainWindow::onError(int id, int code, const QString& message)
         return; // Ignore sec-def data farm status messages
     }
 
+    // Only show toast for actual errors
     showToast(QString("Error %1: %2").arg(code).arg(message), "error");
 }
 

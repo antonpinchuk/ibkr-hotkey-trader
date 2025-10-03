@@ -89,6 +89,8 @@ set(SOURCES
     src/dialogs/settingsdialog.h
     src/dialogs/symbolsearchdialog.cpp
     src/dialogs/symbolsearchdialog.h
+    src/dialogs/debuglogdialog.cpp
+    src/dialogs/debuglogdialog.h
     # Widgets
     src/widgets/chartwidget.cpp
     src/widgets/chartwidget.h
@@ -113,6 +115,9 @@ set(SOURCES
     src/models/uistate.h
     src/models/order.cpp
     src/models/order.h
+    # Utils
+    src/utils/logger.cpp
+    src/utils/logger.h
 )
 
 # TWS API source files
