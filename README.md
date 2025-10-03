@@ -42,6 +42,7 @@ sudo apt install cmake qt6-base-dev protobuf-compiler libprotobuf-dev libabsl-de
    - Log in to your IBKR account portal
    - Go to **Account Management → Market Data Subscriptions**
    - Subscribe to a market data package, for example:
+     - **NASDAQ Basic (NP,L1)** - $1.50/month
      - **US Securities Snapshot and Futures Value Bundle (NP,L1)** - $10/month
      - Or other packages based on your trading needs
    - Without a subscription, the app will not receive real-time price updates
