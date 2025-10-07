@@ -1,5 +1,6 @@
 #include "client/ibkrclient.h"
 #include "../external/twsapi/source/cppclient/client/Order.h"
+#include "../external/twsapi/source/cppclient/client/TagValue.h"
 #include "utils/logger.h"
 #include <QDebug>
 
@@ -43,9 +44,15 @@ void IBKRClient::setupSignals()
         m_reconnectTimer->stop();
         m_nextOrderId = nextOrderId;
         m_disconnectLogged = false; // Reset disconnect flag on successful connection
+        m_wrapper->resetSession(); // Reset session tracking (logs, etc.)
         LOG_INFO(QString("TWS API ready, next order ID: %1").arg(nextOrderId));
         // Request managed accounts to get active account (after API is ready)
         requestManagedAccounts();
+        // Bind manual orders automatically
+        m_socket->reqAutoOpenOrders(true);
+        // Request open and completed orders
+        requestOpenOrders();
+        requestCompletedOrders();
         emit connected();
     });
 
@@ -60,6 +67,7 @@ void IBKRClient::setupSignals()
     QObject::connect(m_wrapper.get(), &IBKRWrapper::marketDataReceived, this, &IBKRClient::marketDataUpdated);
     QObject::connect(m_wrapper.get(), &IBKRWrapper::historicalDataReceived, this, &IBKRClient::historicalBarReceived);
     QObject::connect(m_wrapper.get(), &IBKRWrapper::historicalDataComplete, this, &IBKRClient::historicalDataFinished);
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::orderOpened, this, &IBKRClient::orderConfirmed);
     QObject::connect(m_wrapper.get(), &IBKRWrapper::orderStatusChanged, this, &IBKRClient::orderStatusUpdated);
     QObject::connect(m_wrapper.get(), &IBKRWrapper::executionReceived, this, &IBKRClient::orderFilled);
     QObject::connect(m_wrapper.get(), &IBKRWrapper::accountValueUpdated, this, &IBKRClient::accountUpdated);
@@ -70,6 +78,7 @@ void IBKRClient::setupSignals()
             m_isConnected = true;
             m_reconnectTimer->stop();
             m_disconnectLogged = false; // Reset disconnect flag on successful connection
+            m_wrapper->resetSession(); // Reset session tracking (logs, etc.)
             LOG_INFO("Connection established via managedAccounts");
             emit connected();
         }
@@ -82,7 +91,8 @@ void IBKRClient::setupSignals()
                 m_activeAccount = newAccount;
                 LOG_INFO(QString("Active account set to: %1").arg(m_activeAccount));
                 emit activeAccountChanged(m_activeAccount);
-                // Request account updates to get balance
+                // Request account updates (balance + positions)
+                LOG_DEBUG(QString("Subscribing to account updates for: %1").arg(m_activeAccount));
                 requestAccountUpdates(true, m_activeAccount);
             } else {
                 m_activeAccount = "N/A";
@@ -142,7 +152,11 @@ void IBKRClient::disconnect(bool stopReconnect)
         m_socket->eDisconnect();
     }
 
-    m_reader.reset();
+    // Wait for any pending processMessages() to complete before destroying m_reader
+    {
+        QMutexLocker locker(&m_readerMutex);
+        m_reader.reset();
+    }
 
     if (!m_isConnected) {
         return; // Already disconnected
@@ -168,6 +182,7 @@ void IBKRClient::disconnect(bool stopReconnect)
 void IBKRClient::processMessages()
 {
     // Process messages using EReader pattern (non-blocking)
+    QMutexLocker locker(&m_readerMutex);
     if (m_reader && m_socket && m_socket->isConnected()) {
         m_reader->processMsgs();
     }
@@ -180,6 +195,7 @@ void IBKRClient::attemptReconnect()
         // Ensure clean disconnect before reconnecting
         if (m_socket->isConnected()) {
             m_socket->eDisconnect();
+            QMutexLocker locker(&m_readerMutex);
             m_reader.reset();
         }
         connect(m_host, m_port, m_clientId);
@@ -238,28 +254,64 @@ void IBKRClient::requestHistoricalData(int reqId, const QString& symbol, const Q
                                  barSize.toStdString(), "TRADES", 1, 1, false, TagValueListSPtr());
 }
 
-int IBKRClient::placeOrder(const QString& symbol, const QString& action, int quantity, double limitPrice)
+int IBKRClient::placeOrder(const QString& symbol, const QString& action, int quantity, double limitPrice,
+                           const QString& orderType, const QString& tif, bool outsideRth, const QString& primaryExchange)
 {
-    if (!m_socket->isConnected()) return -1;
+    if (!m_socket->isConnected()) {
+        LOG_WARNING("Cannot place order - not connected to TWS");
+        return -1;
+    }
+
+    LOG_INFO(QString("IBKRClient::placeOrder - symbol=%1, action=%2, qty=%3, limitPrice=%4, type=%5, tif=%6, outsideRth=%7, primaryExch=%8")
+        .arg(symbol).arg(action).arg(quantity).arg(limitPrice, 0, 'f', 2).arg(orderType).arg(tif).arg(outsideRth).arg(primaryExchange));
 
     Contract contract;
     contract.symbol = symbol.toStdString();
     contract.secType = "STK";
     contract.exchange = "SMART";
+
+    // Use provided primaryExchange if available, otherwise default to ISLAND (NASDAQ)
+    if (!primaryExchange.isEmpty()) {
+        contract.primaryExchange = primaryExchange.toStdString();
+    } else {
+        contract.primaryExchange = "ISLAND";  // Default to NASDAQ
+    }
+
     contract.currency = "USD";
 
+    // Create TWS API Order (not our TradeOrder)
+    // IMPORTANT: Initialize Order properly to avoid copy constructor crash
     Order order;
-    order.action = action.toStdString();
-    order.totalQuantity = Decimal(quantity);
-    order.orderType = "LMT";
-    order.lmtPrice = limitPrice;
 
-    // Initialize TagValue pointers to prevent crashes
-    order.algoParams.reset();
-    order.smartComboRoutingParams.reset();
-    order.orderMiscOptions.reset();
+    // Set all required fields explicitly
+    order.action = action.toStdString();
+    order.totalQuantity = DecimalFunctions::doubleToDecimal((double)quantity);
+    order.orderType = orderType.toStdString();
+    order.tif = tif.toStdString();
+    order.outsideRth = outsideRth;
+
+    // Set limit price for limit orders, otherwise keep default (0)
+    if (orderType == "LMT") {
+        order.lmtPrice = limitPrice;
+    } else {
+        order.lmtPrice = 0;
+    }
+
+    // Initialize other fields to prevent uninitialized memory issues
+    order.auxPrice = 0;
+    order.parentId = 0;
+    order.transmit = true;
+    order.displaySize = 0;
+    order.goodAfterTime = "";
+    order.goodTillDate = "";
 
     int orderId = m_nextOrderId++;
+
+    LOG_INFO(QString("Sending order to TWS: orderId=%1, action=%2, qty=%3, totalQty=%4, type=%5, lmt=%6, tif=%7")
+        .arg(orderId).arg(QString::fromStdString(order.action)).arg(quantity)
+        .arg(order.totalQuantity).arg(QString::fromStdString(order.orderType))
+        .arg(order.lmtPrice, 0, 'f', 2).arg(QString::fromStdString(order.tif)));
+
     m_socket->placeOrder(orderId, contract, order);
 
     return orderId;
@@ -287,16 +339,25 @@ void IBKRClient::requestAccountUpdates(bool subscribe, const QString& account)
     m_socket->reqAccountUpdates(subscribe, account.toStdString());
 }
 
-void IBKRClient::requestPositions()
-{
-    if (!m_socket->isConnected()) return;
-    m_socket->reqPositions();
-}
 
 void IBKRClient::requestManagedAccounts()
 {
     if (!m_socket->isConnected()) return;
     m_socket->reqManagedAccts();
+}
+
+void IBKRClient::requestOpenOrders()
+{
+    if (!m_socket->isConnected()) return;
+    LOG_DEBUG("Requesting all open orders from TWS");
+    m_socket->reqAllOpenOrders();  // Get all orders, not just from this client
+}
+
+void IBKRClient::requestCompletedOrders()
+{
+    if (!m_socket->isConnected()) return;
+    LOG_DEBUG("Requesting completed orders from TWS");
+    m_socket->reqCompletedOrders(false);  // false = not API-only orders
 }
 
 void IBKRClient::searchSymbol(int reqId, const QString& pattern)

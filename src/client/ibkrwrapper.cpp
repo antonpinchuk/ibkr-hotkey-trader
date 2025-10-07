@@ -2,12 +2,22 @@
 #include "client/ibkrclient.h"
 #include "utils/logger.h"
 #include "Execution.h"
+#include "Order.h"
+#include "OrderState.h"
 #include "Decimal.h"
 #include <QDebug>
 
 IBKRWrapper::IBKRWrapper(IBKRClient *client)
     : m_client(client)
+    , m_accountValueLogged(false)
+    , m_portfolioLogged(false)
 {
+}
+
+void IBKRWrapper::resetSession()
+{
+    m_accountValueLogged = false;
+    m_portfolioLogged = false;
 }
 
 void IBKRWrapper::connectAck()
@@ -138,24 +148,87 @@ void IBKRWrapper::orderStatus(OrderId orderId, const std::string& status, Decima
     std::string filledStr = DecimalFunctions::decimalStringToDisplay(filled);
     std::string remainingStr = DecimalFunctions::decimalStringToDisplay(remaining);
     qDebug() << "Order status:" << orderId << statusStr << "filled:" << QString::fromStdString(filledStr) << "remaining:" << QString::fromStdString(remainingStr);
+
+    // Log when order is filled to track if portfolio update follows
+    if (statusStr == "Filled") {
+        LOG_DEBUG(QString("Order %1 FILLED - awaiting portfolio update from TWS").arg(orderId));
+    }
+
     emit orderStatusChanged(orderId, statusStr, QString::fromStdString(filledStr).toDouble(), QString::fromStdString(remainingStr).toDouble(), avgFillPrice);
 }
 
 void IBKRWrapper::openOrder(OrderId orderId, const Contract& contract, const Order& order, const OrderState& orderState)
 {
-    qDebug() << "Open order:" << orderId << QString::fromStdString(contract.symbol);
+    QString symbol = QString::fromStdString(contract.symbol);
+    QString action = QString::fromStdString(order.action);
+
+    double quantity = 0;
+    if (order.totalQuantity != UNSET_DECIMAL) {
+        quantity = DecimalFunctions::decimalToDouble(order.totalQuantity);
+        LOG_INFO(QString("Open order: id=%1, %2 %3 x%4 @ %5, type=%6, status=%7")
+            .arg(orderId)
+            .arg(action)
+            .arg(symbol)
+            .arg(quantity)
+            .arg(order.lmtPrice)
+            .arg(QString::fromStdString(order.orderType))
+            .arg(QString::fromStdString(orderState.status)));
+    } else {
+        LOG_WARNING(QString("Open order with UNSET quantity: orderId=%1, %2 %3 - skipping")
+            .arg(orderId).arg(action).arg(symbol));
+        return;
+    }
+
+    emit orderOpened(orderId, symbol, action, (int)quantity, order.lmtPrice);
 }
 
 void IBKRWrapper::openOrderEnd()
 {
-    qDebug() << "Open orders end";
+    LOG_DEBUG("Open orders end");
+}
+
+void IBKRWrapper::completedOrder(const Contract& contract, const Order& order, const OrderState& orderState)
+{
+    QString symbol = QString::fromStdString(contract.symbol);
+    QString action = QString::fromStdString(order.action);
+
+    double quantity = 0;
+    if (order.filledQuantity != UNSET_DECIMAL) {
+        quantity = DecimalFunctions::decimalToDouble(order.filledQuantity);
+    } else if (order.totalQuantity != UNSET_DECIMAL) {
+        quantity = DecimalFunctions::decimalToDouble(order.totalQuantity);
+    } else {
+        LOG_WARNING(QString("Completed order with UNSET quantity: orderId=%1, %2 %3 - skipping")
+            .arg(order.orderId).arg(action).arg(symbol));
+        return;
+    }
+
+    LOG_INFO(QString("Completed order: id=%1, %2 %3 x%4 @ %5, status=%6")
+        .arg(order.orderId)
+        .arg(action)
+        .arg(symbol)
+        .arg(quantity)
+        .arg(order.lmtPrice)
+        .arg(QString::fromStdString(orderState.status)));
+
+    emit orderOpened(order.orderId, symbol, action, (int)quantity, order.lmtPrice);
+}
+
+void IBKRWrapper::completedOrdersEnd()
+{
+    LOG_DEBUG("Completed orders end");
 }
 
 void IBKRWrapper::execDetails(int reqId, const Contract& contract, const Execution& execution)
 {
+    QString symbol = QString::fromStdString(contract.symbol);
+    QString side = QString::fromStdString(execution.side); // "BOT" or "SLD"
     std::string sharesStr = DecimalFunctions::decimalStringToDisplay(execution.shares);
-    qDebug() << "Execution:" << execution.orderId << "price:" << execution.price << "shares:" << QString::fromStdString(sharesStr);
-    emit executionReceived(execution.orderId, execution.price, QString::fromStdString(sharesStr).toDouble());
+    double shares = QString::fromStdString(sharesStr).toDouble();
+
+    qDebug() << "Execution:" << execution.orderId << symbol << side << "price:" << execution.price << "shares:" << shares;
+
+    emit executionReceived(execution.orderId, symbol, side, execution.price, shares);
 }
 
 void IBKRWrapper::execDetailsEnd(int reqId)
@@ -165,12 +238,37 @@ void IBKRWrapper::execDetailsEnd(int reqId)
 
 void IBKRWrapper::updateAccountValue(const std::string& key, const std::string& val, const std::string& currency, const std::string& accountName)
 {
+    // Log only account number and balance (NetLiquidation) until accountDownloadEnd
+    if (!m_accountValueLogged) {
+        if (key == "AccountCode") {
+            LOG_DEBUG(QString("Account: %1").arg(QString::fromStdString(val)));
+        } else if (key == "NetLiquidation") {
+            LOG_DEBUG(QString("Balance: $%1 %2")
+                .arg(QString::fromStdString(val))
+                .arg(QString::fromStdString(currency)));
+        }
+    }
+
     emit accountValueUpdated(QString::fromStdString(key), QString::fromStdString(val), QString::fromStdString(currency), QString::fromStdString(accountName));
 }
 
 void IBKRWrapper::updatePortfolio(const Contract& contract, Decimal position, double marketPrice, double marketValue, double averageCost, double unrealizedPNL, double realizedPNL, const std::string& accountName)
 {
-    // Not used for now
+    QString symbol = QString::fromStdString(contract.symbol);
+    double quantity = DecimalFunctions::decimalToDouble(position);
+
+    // Log all portfolio updates until accountDownloadEnd
+    if (!m_portfolioLogged) {
+        LOG_DEBUG(QString("Portfolio: symbol=%1, qty=%2, avgCost=%3, marketPrice=%4, marketValue=%5, unrealizedPNL=%6")
+            .arg(symbol)
+            .arg(quantity)
+            .arg(averageCost)
+            .arg(marketPrice)
+            .arg(marketValue)
+            .arg(unrealizedPNL));
+    }
+
+    emit positionUpdated(QString::fromStdString(accountName), symbol, quantity, averageCost, marketPrice, unrealizedPNL);
 }
 
 void IBKRWrapper::updateAccountTime(const std::string& timeStamp)
@@ -180,18 +278,19 @@ void IBKRWrapper::updateAccountTime(const std::string& timeStamp)
 
 void IBKRWrapper::accountDownloadEnd(const std::string& accountName)
 {
-    qDebug() << "Account download end:" << QString::fromStdString(accountName);
+    // Disable logging after first account download
+    m_accountValueLogged = true;
+    m_portfolioLogged = true;
 }
 
 void IBKRWrapper::position(const std::string& account, const Contract& contract, Decimal position, double avgCost)
 {
-    std::string posStr = DecimalFunctions::decimalStringToDisplay(position);
-    emit positionUpdated(QString::fromStdString(account), QString::fromStdString(contract.symbol), QString::fromStdString(posStr).toDouble(), avgCost);
+    // Not used - we get positions from updatePortfolio() via reqAccountUpdates()
 }
 
 void IBKRWrapper::positionEnd()
 {
-    qDebug() << "Positions end";
+    // Not used - we get positions from updatePortfolio() via reqAccountUpdates()
 }
 
 void IBKRWrapper::contractDetails(int reqId, const ContractDetails& contractDetails)

@@ -5,6 +5,21 @@
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QLabel>
+#include <QMap>
+#include <QMutex>
+#include <QMutexLocker>
+#include "models/order.h"
+
+// Custom QTableWidgetItem that sorts numerically instead of lexicographically
+class NumericTableWidgetItem : public QTableWidgetItem
+{
+public:
+    NumericTableWidgetItem(const QString& text) : QTableWidgetItem(text) {}
+
+    bool operator<(const QTableWidgetItem& other) const override {
+        return data(Qt::UserRole).toDouble() < other.data(Qt::UserRole).toDouble();
+    }
+};
 
 class OrderHistoryWidget : public QWidget
 {
@@ -16,15 +31,30 @@ public:
     void saveColumnWidths();
     void setAccount(const QString& account);
     void setBalance(double balance);
+    void setShowCancelledAndZeroPositions(bool show);
+
+public slots:
+    void addOrder(const TradeOrder& order);
+    void updateOrder(const TradeOrder& order);
+    void removeOrder(int orderId);
+    void updateCurrentPrice(const QString& symbol, double price);
+    void updatePosition(const QString& symbol, double quantity, double avgCost, double marketPrice, double unrealizedPNL);
+    void updatePositionQuantityAfterFill(const QString& symbol, const QString& side, int fillQuantity); // Fast update after order fill
 
 private:
     void setupTableColumns(QTableWidget *table);
     void restoreColumnWidths(QTableWidget *table, const QString& tableName);
     void connectColumnResizeSignals();
+    void updateStatistics();
+    int findOrderRow(QTableWidget* table, int orderId);
+    void addOrderToTable(QTableWidget* table, const TradeOrder& order);
+    void updateOrderInTable(QTableWidget* table, int row, const TradeOrder& order);
+    double calculatePnL(const TradeOrder& buyOrder, const TradeOrder& sellOrder);
 
     QTabWidget *m_tabWidget;
     QTableWidget *m_currentTable;
     QTableWidget *m_allTable;
+    QTableWidget *m_positionsTable;
 
     QLabel *m_account;
     QLabel *m_totalBalance;
@@ -34,6 +64,24 @@ private:
     QLabel *m_numTrades;
     QLabel *m_largestWin;
     QLabel *m_largestLoss;
+
+    // Track orders for statistics and PnL calculation
+    QMap<int, TradeOrder> m_orders;
+    QMap<QString, double> m_currentPrices; // symbol -> current price
+    QMap<int, int> m_currentTableRows; // orderId -> row
+    QMap<int, int> m_allTableRows; // orderId -> row
+
+    // Track positions
+    struct Position {
+        QString symbol;
+        double quantity = 0.0;
+        double avgCost = 0.0;
+        double currentPrice = 0.0;
+    };
+    QMap<QString, Position> m_positions; // symbol -> Position
+    QMutex m_positionsMutex; // Thread-safe access to positions
+
+    bool m_showCancelledAndZeroPositions;
 };
 
 #endif // ORDERHISTORYWIDGET_H

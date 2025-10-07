@@ -15,7 +15,7 @@ enum class OrderAction {
     Sell
 };
 
-struct Order {
+struct TradeOrder {
     int orderId;
     QString symbol;
     OrderAction action;
@@ -26,13 +26,15 @@ struct Order {
     double fillPrice;
     QDateTime fillTime;
 
-    Order()
+    TradeOrder()
         : orderId(0)
         , action(OrderAction::Buy)
         , quantity(0)
         , price(0.0)
         , status(OrderStatus::Pending)
+        , timestamp(QDateTime::currentDateTime())
         , fillPrice(0.0)
+        , fillTime()
     {}
 
     bool isBuy() const { return action == OrderAction::Buy; }

@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QTimer>
 #include <QThread>
+#include <QMutex>
 #include <memory>
 #include "EClientSocket.h"
 #include "EReader.h"
@@ -35,14 +36,17 @@ public:
     void requestHistoricalData(int reqId, const QString& symbol, const QString& endDateTime, const QString& duration, const QString& barSize);
 
     // Orders
-    int placeOrder(const QString& symbol, const QString& action, int quantity, double limitPrice);
+    int placeOrder(const QString& symbol, const QString& action, int quantity, double limitPrice,
+                   const QString& orderType = "LMT", const QString& tif = "DAY", bool outsideRth = false,
+                   const QString& primaryExchange = QString());
     void cancelOrder(int orderId);
     void cancelAllOrders();
 
     // Account
     void requestAccountUpdates(bool subscribe, const QString& account);
-    void requestPositions();
     void requestManagedAccounts();
+    void requestOpenOrders();
+    void requestCompletedOrders();
 
     // Contract Search
     void searchSymbol(int reqId, const QString& pattern);
@@ -61,11 +65,12 @@ signals:
     void historicalBarReceived(int reqId, long time, double open, double high, double low, double close, long volume);
     void historicalDataFinished(int reqId);
 
+    void orderConfirmed(int orderId, const QString& symbol, const QString& action, int quantity, double price);
     void orderStatusUpdated(int orderId, const QString& status, double filled, double remaining, double avgFillPrice);
-    void orderFilled(int orderId, double fillPrice, int fillQuantity);
+    void orderFilled(int orderId, const QString& symbol, const QString& side, double fillPrice, int fillQuantity);
 
     void accountUpdated(const QString& key, const QString& value, const QString& currency, const QString& account);
-    void positionUpdated(const QString& account, const QString& symbol, double position, double avgCost);
+    void positionUpdated(const QString& account, const QString& symbol, double position, double avgCost, double marketPrice, double unrealizedPNL);
 
     void accountsReceived(const QString& accounts);
     void symbolFound(int reqId, const QString& symbol, const QString& exchange, int conId);
@@ -85,6 +90,7 @@ private:
     std::unique_ptr<EReaderOSSignal> m_signal;
     QTimer *m_messageTimer;
     QTimer *m_reconnectTimer;
+    QMutex m_readerMutex;  // Protect m_reader access
 
     bool m_isConnected;
     QString m_host;

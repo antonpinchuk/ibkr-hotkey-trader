@@ -34,7 +34,7 @@ protected:
 
 private slots:
     void onSymbolSearchRequested();
-    void onSymbolSelected(const QString& symbol);
+    void onSymbolSelected(const QString& symbol, const QString& exchange = QString());
     void onSettingsClicked();
     void onResetSession();
     void onQuit();
@@ -62,6 +62,7 @@ private slots:
     void onClose75();
     void onClose100();
     void onCancelOrders();
+    void onToggleShowCancelledAndZeroPositions(bool checked);
     void onSplitterMoved();
 
     // Price update slots
@@ -107,6 +108,9 @@ private:
     QPushButton *m_btnClose75;
     QPushButton *m_btnClose100;
 
+    // Menu actions
+    QAction *m_showCancelledOrdersAction;
+
     QToolBar *m_toolbar;
     QSplitter *m_mainSplitter;        // Left: ticker list, Right: everything else
     QSplitter *m_rightSplitter;       // Top: toolbar, Bottom: chart + orders
@@ -139,6 +143,7 @@ private:
     int m_nextTickerId;
     QMap<QString, int> m_symbolToTickerId;       // symbol -> tickerId
     QMap<int, QString> m_tickerIdToSymbol;       // tickerId -> symbol
+    QMap<QString, QString> m_symbolToExchange;   // symbol -> primaryExchange
 };
 
 #endif // MAINWINDOW_H

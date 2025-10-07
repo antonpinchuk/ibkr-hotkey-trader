@@ -39,7 +39,7 @@ public:
     explicit SymbolSearchDialog(IBKRClient *client, QWidget *parent = nullptr);
 
 signals:
-    void symbolSelected(const QString& symbol);
+    void symbolSelected(const QString& symbol, const QString& exchange);
 
 private slots:
     void onSearchTextChanged(const QString& text);

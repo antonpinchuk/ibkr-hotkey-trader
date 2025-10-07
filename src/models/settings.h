@@ -35,6 +35,10 @@ public:
     int clientId() const { return m_clientId; }
     void setClientId(int id);
 
+    // View settings
+    bool showCancelledOrders() const { return m_showCancelledOrders; }
+    void setShowCancelledOrders(bool show);
+
     void load();
     void save();
 
@@ -53,6 +57,7 @@ private:
     QString m_host;
     int m_port;
     int m_clientId;
+    bool m_showCancelledOrders;
 
     void initDatabase();
     void initDefaults();

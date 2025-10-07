@@ -189,7 +189,7 @@ void SymbolSearchDialog::onItemActivated(QListWidgetItem *item)
 {
     int index = m_resultsWidget->row(item);
     if (index >= 0 && index < m_searchResults.size()) {
-        emit symbolSelected(m_searchResults[index].symbol);
+        emit symbolSelected(m_searchResults[index].symbol, m_searchResults[index].exchange);
         accept();
     }
 }

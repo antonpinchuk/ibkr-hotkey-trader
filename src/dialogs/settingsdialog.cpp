@@ -153,7 +153,7 @@ void SettingsDialog::setupUI()
     connectionLayout->addRow("Port:", m_portSpin);
 
     m_clientIdSpin = new QSpinBox();
-    m_clientIdSpin->setRange(1, 999);
+    m_clientIdSpin->setRange(0, 999);  // 0 is required for binding manual TWS orders
     connectionLayout->addRow("Client ID:", m_clientIdSpin);
 
     m_tabWidget->addTab(connectionTab, "Connection");

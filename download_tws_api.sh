@@ -33,22 +33,19 @@ mkdir -p "$EXTERNAL_DIR"
 cd "$EXTERNAL_DIR"
 
 # Download TWS API
-echo "Downloading TWS API (latest version)..."
+echo "Downloading TWS API..."
 echo ""
 
-# TWS API download URL - using latest Mac/Unix version
-TWS_API_URL="https://interactivebrokers.github.io/downloads/twsapi_macunix.1040.01.zip"
+# TWS API download URL
+# latest Mac/Unix version
+# TWS_API_URL="https://interactivebrokers.github.io/downloads/twsapi_macunix.1040.01.zip"
+# stable version
+TWS_API_URL="https://interactivebrokers.github.io/downloads/twsapi_macunix.1037.02.zip"
 
 if command -v curl &> /dev/null; then
-    curl -L -o twsapi.zip "$TWS_API_URL" || {
-        echo "Download failed. Trying stable version..."
-        curl -L -o twsapi.zip "https://interactivebrokers.github.io/downloads/twsapi_macunix.1037.02.zip"
-    }
+    curl -L -o twsapi.zip "$TWS_API_URL"
 elif command -v wget &> /dev/null; then
-    wget -O twsapi.zip "$TWS_API_URL" || {
-        echo "Download failed. Trying stable version..."
-        wget -O twsapi.zip "https://interactivebrokers.github.io/downloads/twsapi_macunix.1037.02.zip"
-    }
+    wget -O twsapi.zip "$TWS_API_URL"
 else
     echo "Error: Neither curl nor wget found. Please install one of them."
     echo ""

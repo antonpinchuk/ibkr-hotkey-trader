@@ -61,8 +61,11 @@ MainWindow::MainWindow(QWidget *parent)
     setupConnections();
     restoreUIState();
 
-    // Try to connect to TWS on startup
+    // Apply saved settings to order history
     Settings& settings = Settings::instance();
+    m_orderHistory->setShowCancelledAndZeroPositions(settings.showCancelledOrders());
+
+    // Try to connect to TWS on startup
     m_ibkrClient->connect(settings.host(), settings.port(), settings.clientId());
 }
 
@@ -197,6 +200,15 @@ void MainWindow::setupMenuBar()
     QAction *close100Action = ordersMenu->addAction("Close 100%");
     close100Action->setShortcut(QKeySequence("Ctrl+Z"));
     connect(close100Action, &QAction::triggered, this, &MainWindow::onClose100);
+
+    // View menu
+    QMenu *viewMenu = menuBar()->addMenu("View");
+
+    m_showCancelledOrdersAction = viewMenu->addAction("Show Cancelled && Zero Positions");
+    m_showCancelledOrdersAction->setCheckable(true);
+    m_showCancelledOrdersAction->setShortcut(QKeySequence("Ctrl+Shift+."));
+    m_showCancelledOrdersAction->setChecked(Settings::instance().showCancelledOrders());
+    connect(m_showCancelledOrdersAction, &QAction::triggered, this, &MainWindow::onToggleShowCancelledAndZeroPositions);
 
     QMenu *helpMenu = menuBar()->addMenu("Help");
 
@@ -383,12 +395,22 @@ void MainWindow::setupConnections()
             m_orderHistory->setBalance(value.toDouble());
         }
     });
+    connect(m_ibkrClient, &IBKRClient::positionUpdated, this, [this](const QString& account, const QString& symbol, double position, double avgCost, double marketPrice, double unrealizedPNL) {
+        m_orderHistory->updatePosition(symbol, position, avgCost, marketPrice, unrealizedPNL);
+    });
+    connect(m_ibkrClient, &IBKRClient::orderFilled, this, [this](int orderId, const QString& symbol, const QString& side, double fillPrice, int fillQuantity) {
+        m_orderHistory->updatePositionQuantityAfterFill(symbol, side, fillQuantity);
+    });
 
     // Symbol search
     connect(m_symbolSearch, &SymbolSearchDialog::symbolSelected, this, &MainWindow::onSymbolSelected);
 
-    // Ticker list
-    connect(m_tickerList, &TickerListWidget::symbolSelected, this, &MainWindow::onSymbolSelected);
+    // Ticker list (exchange already stored when symbol was added)
+    connect(m_tickerList, &TickerListWidget::symbolSelected, this, [this](const QString& symbol) {
+        // Retrieve stored exchange or use empty string
+        QString exchange = m_symbolToExchange.value(symbol, QString());
+        onSymbolSelected(symbol, exchange);
+    });
     connect(m_tickerList, &TickerListWidget::tickerLabelClicked, this, &MainWindow::onSymbolSearchRequested);
 
     // Splitter state saving
@@ -398,6 +420,20 @@ void MainWindow::setupConnections()
 
     // Price updates (use marketDataUpdated for free data)
     connect(m_ibkrClient, &IBKRClient::marketDataUpdated, this, &MainWindow::onTickByTickUpdated);
+
+    // Trading Manager -> Order History
+    connect(m_tradingManager, &TradingManager::orderPlaced, m_orderHistory, &OrderHistoryWidget::addOrder);
+    connect(m_tradingManager, &TradingManager::orderUpdated, m_orderHistory, &OrderHistoryWidget::updateOrder);
+    connect(m_tradingManager, &TradingManager::orderCancelled, m_orderHistory, &OrderHistoryWidget::removeOrder);
+    // Position updates come directly from IBKRClient now (line 395)
+
+    // Trading Manager warnings and errors
+    connect(m_tradingManager, &TradingManager::warning, this, [this](const QString& message) {
+        showToast(message, "warning");
+    });
+    connect(m_tradingManager, &TradingManager::error, this, [this](const QString& message) {
+        showToast(message, "error");
+    });
 
     // Error handling for market data subscription issues
     connect(m_ibkrClient, &IBKRClient::error, this, [this](int id, int code, const QString& message) {
@@ -494,9 +530,14 @@ void MainWindow::onSymbolSearchRequested()
     m_symbolSearch->activateWindow();
 }
 
-void MainWindow::onSymbolSelected(const QString& symbol)
+void MainWindow::onSymbolSelected(const QString& symbol, const QString& exchange)
 {
     // TODO: Check if there are open positions before switching
+
+    // Store exchange for this symbol
+    if (!exchange.isEmpty()) {
+        m_symbolToExchange[symbol] = exchange;
+    }
 
     // Get or create ticker ID for this symbol
     int tickerId;
@@ -510,6 +551,11 @@ void MainWindow::onSymbolSelected(const QString& symbol)
         m_tickerList->setCurrentSymbol(symbol);
         m_chart->setSymbol(symbol);
         m_tradingManager->setSymbol(symbol);
+
+        // Update TradingManager with exchange info
+        if (m_symbolToExchange.contains(symbol)) {
+            m_tradingManager->setSymbolExchange(symbol, m_symbolToExchange[symbol]);
+        }
 
         // Note: Don't restart market data - it's already running for this symbol
     } else {
@@ -704,6 +750,13 @@ void MainWindow::onClose100()
 void MainWindow::onCancelOrders()
 {
     m_tradingManager->cancelAllOrders();
+}
+
+void MainWindow::onToggleShowCancelledAndZeroPositions(bool checked)
+{
+    Settings::instance().setShowCancelledOrders(checked);
+    Settings::instance().save();
+    m_orderHistory->setShowCancelledAndZeroPositions(checked);
 }
 
 void MainWindow::onSplitterMoved()
@@ -907,16 +960,22 @@ void MainWindow::onTickByTickUpdated(int reqId, double price, double bidPrice, d
         m_tickerList->setCurrentSymbol(symbol);
         m_chart->setSymbol(symbol);
         m_tradingManager->setSymbol(symbol);
+
+        // Update TradingManager with exchange info
+        if (m_symbolToExchange.contains(symbol)) {
+            m_tradingManager->setSymbolExchange(symbol, m_symbolToExchange[symbol]);
+        }
+
         m_pendingSymbol.clear();
         m_previousSymbol.clear();
     }
 
-    // Calculate the price to display (use mid price if bid/ask available, otherwise use price)
-    double displayPrice = price;
-    if (bidPrice > 0 && askPrice > 0) {
-        displayPrice = (bidPrice + askPrice) / 2.0;
-    } else if (price > 0) {
+    // Use last trade price (includes pre/post market), fallback to mid-price
+    double displayPrice = 0.0;
+    if (price > 0) {
         displayPrice = price;
+    } else if (bidPrice > 0 && askPrice > 0) {
+        displayPrice = (bidPrice + askPrice) / 2.0;
     } else {
         // No valid price data
         LOG_DEBUG(QString("onTickByTickUpdated: No valid price data for %1").arg(symbol));
@@ -933,6 +992,9 @@ void MainWindow::onTickByTickUpdated(int reqId, double price, double bidPrice, d
 
     // Update current bar in TickerDataManager
     m_tickerDataManager->updateCurrentBar(symbol, displayPrice);
+
+    // Update OrderHistoryWidget with current price for PnL calculation
+    m_orderHistory->updateCurrentPrice(symbol, displayPrice);
 
     // Calculate change percent from 10 seconds ago (use bars from TickerDataManager)
     double changePercent = 0.0;

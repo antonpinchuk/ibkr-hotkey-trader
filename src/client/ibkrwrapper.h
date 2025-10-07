@@ -4,6 +4,7 @@
 #include "DefaultEWrapper.h"
 #include <QObject>
 #include <QMap>
+#include <QDateTime>
 #include <memory>
 
 class IBKRClient;
@@ -16,6 +17,8 @@ class IBKRWrapper : public QObject, public DefaultEWrapper
 public:
     explicit IBKRWrapper(IBKRClient *client);
     virtual ~IBKRWrapper() = default;
+
+    void resetSession();
 
     // Connection and Server
     void connectAck() override;
@@ -168,8 +171,8 @@ public:
     void orderBound(long long orderId, int apiClientId, int apiOrderId) override {}
 
     // Completed Order - Not used but must be implemented
-    void completedOrder(const Contract& contract, const Order& order, const OrderState& orderState) override {}
-    void completedOrdersEnd() override {}
+    void completedOrder(const Contract& contract, const Order& order, const OrderState& orderState) override;
+    void completedOrdersEnd() override;
 
     // Replace FA End - Not used but must be implemented
     void replaceFAEnd(int reqId, const std::string& text) override {}
@@ -197,11 +200,12 @@ signals:
     void historicalDataReceived(int reqId, long time, double open, double high, double low, double close, long volume);
     void historicalDataComplete(int reqId);
 
+    void orderOpened(int orderId, const QString& symbol, const QString& action, int quantity, double price);
     void orderStatusChanged(int orderId, const QString& status, double filled, double remaining, double avgFillPrice);
-    void executionReceived(int orderId, double fillPrice, int fillQuantity);
+    void executionReceived(int orderId, const QString& symbol, const QString& side, double fillPrice, int fillQuantity);
 
     void accountValueUpdated(const QString& key, const QString& value, const QString& currency, const QString& account);
-    void positionUpdated(const QString& account, const QString& symbol, double position, double avgCost);
+    void positionUpdated(const QString& account, const QString& symbol, double position, double avgCost, double marketPrice, double unrealizedPNL);
 
     void managedAccountsReceived(const QString& accounts);
 
@@ -222,6 +226,10 @@ private:
         bool hasAsk = false;
     };
     QMap<int, MarketDataCache> m_marketDataCache;
+
+    // Session tracking for first-time logging
+    bool m_accountValueLogged = false;
+    bool m_portfolioLogged = false;
 };
 
 #endif // IBKRWRAPPER_H

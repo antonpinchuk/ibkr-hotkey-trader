@@ -16,7 +16,9 @@ public:
     explicit TradingManager(IBKRClient *client, QObject *parent = nullptr);
 
     void setSymbol(const QString& symbol);
+    void setSymbolExchange(const QString& symbol, const QString& exchange);
     QString currentSymbol() const { return m_currentSymbol; }
+    QString currentExchange() const { return m_currentExchange; }
 
     void openPosition(int percentage);
     void addToPosition(int percentage);
@@ -29,8 +31,8 @@ public:
     double getPendingSellQuantity() const;
 
 signals:
-    void orderPlaced(const Order& order);
-    void orderUpdated(const Order& order);
+    void orderPlaced(const TradeOrder& order);
+    void orderUpdated(const TradeOrder& order);
     void orderCancelled(int orderId);
     void positionUpdated(const QString& symbol, double quantity, double avgCost);
     void warning(const QString& message);
@@ -38,7 +40,9 @@ signals:
 
 private slots:
     void onTickByTickUpdated(int reqId, double price, double bidPrice, double askPrice);
+    void onOrderConfirmed(int orderId, const QString& symbol, const QString& action, int quantity, double price);
     void onOrderStatusUpdated(int orderId, const QString& status, double filled, double remaining, double avgFillPrice);
+    void onError(int id, int code, const QString& message);
     void checkAndUpdateSellOrders();
 
 private:
@@ -46,14 +50,14 @@ private:
     double getBudget() const;
     int getAskOffset() const;
     int getBidOffset() const;
+    bool isRegularTradingHours() const;
 
-    void placeBuyOrder(int quantity, double price);
-    void placeSellOrder(int quantity, double price);
-    void updatePendingBuyOrder(int quantity, double price);
-    void updatePendingSellOrder(int quantity, double price);
+    int placeOrder(const QString& action, int quantity, double price);
+    void updatePendingOrder(int& pendingOrderId, const QString& action, int quantity, double price);
 
     IBKRClient *m_client;
     QString m_currentSymbol;
+    QString m_currentExchange;
 
     // Current market data
     double m_currentPrice;
@@ -65,7 +69,7 @@ private:
     QMap<QString, double> m_avgCosts;   // symbol -> avg cost
 
     // Order tracking
-    QMap<int, Order> m_orders;  // orderId -> Order
+    QMap<int, TradeOrder> m_orders;  // orderId -> TradeOrder
     int m_pendingBuyOrderId;
     int m_pendingSellOrderId;
     int m_currentSellBidOffset;  // Track Y doubling for sell orders
