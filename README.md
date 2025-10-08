@@ -52,9 +52,17 @@ sudo apt install cmake qt6-base-dev protobuf-compiler libprotobuf-dev libabsl-de
 3. Enable API connections in TWS:
    - Go to **File → Global Configuration → API → Settings**
    - Check **Enable ActiveX and Socket Clients**
+   - **Uncheck** **Read-Only API** to allow trading
+   - Set **Master API client ID** to `0` (some of our call require master client id)
+   - Set **Download open orders on connection** to `All Available`
    - Check **Allow connections from localhost only** (recommended for security)
-   - Note the **Socket port** (default: 7496 for TWS, 4001 for IB Gateway)
-   - Check **Read-Only API** is **unchecked** to allow trading
+   - Note the **Socket port** (default: 7496 for TWS, for convenience you can set the same port for paper account)
+
+4. **First Order Confirmation** (one-time):
+   - When you place your first order, TWS will show a confirmation popup
+   - Click **Yes** to execute the order immediately
+   - Check **Remember my answer** if you want all future orders to execute without confirmation
+   - This is a TWS security feature to prevent accidental order execution
 
 ## Installation
 
@@ -221,14 +229,18 @@ ibkr-hotkey-trader/
 │   │   └── tickeritemdelegate.h/cpp      # Ticker list item delegate
 │   ├── dialogs/
 │   │   ├── settingsdialog.h/cpp          # Settings dialog
-│   │   └── symbolsearchdialog.h/cpp      # Symbol search dialog
+│   │   ├── symbolsearchdialog.h/cpp      # Symbol search dialog
+│   │   └── debuglogdialog.h/cpp          # Debug log viewer
 │   ├── trading/
 │   │   └── tradingmanager.h/cpp          # Trading logic
 │   ├── models/
 │   │   ├── order.h/cpp                   # Order data model
 │   │   ├── settings.h/cpp                # Settings data model
-│   │   └── uistate.h/cpp                 # UI state model
-│   └── bid_stub.cpp                      # Bid generation stub
+│   │   ├── uistate.h/cpp                 # UI state model
+│   │   └── tickerdatamanager.h/cpp       # Ticker data manager
+│   ├── utils/
+│   │   └── logger.h/cpp                  # Logging system
+│   └── bid_stub.cpp                      # Bid generation stub (Apple Silicon)
 ├── external/
 │   └── twsapi/                           # TWS API (download separately)
 ├── doc/
