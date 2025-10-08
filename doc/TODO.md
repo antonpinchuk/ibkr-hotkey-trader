@@ -22,8 +22,6 @@
    - Closing positions (25-100%)
    - Order tracking and update logic
    - Budget checks and warnings
-   - Auto-update buy orders when Ask changes
-   - Auto-update sell orders with doubling Bid offset
    - Immediate position updates after order filled
 
 4. **Data Models**:

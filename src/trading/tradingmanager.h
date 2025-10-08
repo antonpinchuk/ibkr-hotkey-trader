@@ -3,7 +3,6 @@
 
 #include <QObject>
 #include <QMap>
-#include <QTimer>
 #include "models/order.h"
 
 class IBKRClient;
@@ -24,11 +23,9 @@ public:
     void addToPosition(int percentage);
     void closePosition(int percentage);
     void cancelAllOrders();
-    void closeAllPositions();
 
     double getCurrentPosition() const;
     double getPendingBuyQuantity() const;
-    double getPendingSellQuantity() const;
 
 signals:
     void orderPlaced(const TradeOrder& order);
@@ -43,7 +40,6 @@ private slots:
     void onOrderConfirmed(int orderId, const QString& symbol, const QString& action, int quantity, double price);
     void onOrderStatusUpdated(int orderId, const QString& status, double filled, double remaining, double avgFillPrice);
     void onError(int id, int code, const QString& message);
-    void checkAndUpdateSellOrders();
 
 private:
     int calculateSharesFromPercentage(int percentage);
@@ -66,16 +62,11 @@ private:
 
     // Position tracking
     QMap<QString, double> m_positions;  // symbol -> quantity
-    QMap<QString, double> m_avgCosts;   // symbol -> avg cost
 
     // Order tracking
     QMap<int, TradeOrder> m_orders;  // orderId -> TradeOrder
     int m_pendingBuyOrderId;
     int m_pendingSellOrderId;
-    int m_currentSellBidOffset;  // Track Y doubling for sell orders
-
-    // Timer for sell order price monitoring
-    QTimer *m_sellOrderMonitor;
 };
 
 #endif // TRADINGMANAGER_H

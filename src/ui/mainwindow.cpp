@@ -588,7 +588,6 @@ void MainWindow::onResetSession()
 
     if (reply == QMessageBox::Yes) {
         // TODO: Implement session reset
-        m_tradingManager->closeAllPositions();
         m_tradingManager->cancelAllOrders();
         m_currentSymbol.clear();
         m_tickerList->setTickerLabel("N/A");
@@ -605,7 +604,6 @@ void MainWindow::onQuit()
 
     if (reply == QMessageBox::Yes) {
         // TODO: Close all positions and orders, then quit
-        m_tradingManager->closeAllPositions();
         m_tradingManager->cancelAllOrders();
         QApplication::quit();
     }
