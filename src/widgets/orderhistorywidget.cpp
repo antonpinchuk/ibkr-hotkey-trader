@@ -17,18 +17,20 @@ OrderHistoryWidget::OrderHistoryWidget(QWidget *parent)
 
     m_tabWidget = new QTabWidget(this);
 
+    // Current/All tabs - 8 columns
     m_currentTable = new QTableWidget(0, 8, this);
-    m_currentTable->setHorizontalHeaderLabels({"Status", "Symbol", "Qty", "Open $", "Close $", "PnL $", "PnL %", "Time"});
+    m_currentTable->setHorizontalHeaderLabels({"Status", "Symbol", "Buy/Sell", "Qty", "Price", "Cost", "Comm", "Time"});
     setupTableColumns(m_currentTable);
     restoreColumnWidths(m_currentTable, "order_history_current");
     m_tabWidget->addTab(m_currentTable, "Current");
 
     m_allTable = new QTableWidget(0, 8, this);
-    m_allTable->setHorizontalHeaderLabels({"Status", "Symbol", "Qty", "Open $", "Close $", "PnL $", "PnL %", "Time"});
+    m_allTable->setHorizontalHeaderLabels({"Status", "Symbol", "Buy/Sell", "Qty", "Price", "Cost", "Comm", "Time"});
     setupTableColumns(m_allTable);
     restoreColumnWidths(m_allTable, "order_history_all");
     m_tabWidget->addTab(m_allTable, "All");
 
+    // Portfolio tab - 8 columns (same as before)
     m_positionsTable = new QTableWidget(0, 8, this);
     m_positionsTable->setHorizontalHeaderLabels({"Symbol", "Qty", "Avg", "Cost", "Last", "Value", "P&L", "P&L %"});
     setupTableColumns(m_positionsTable);
@@ -52,24 +54,29 @@ OrderHistoryWidget::OrderHistoryWidget(QWidget *parent)
 
     m_account = new QLabel("Account: N/A", this);
     m_totalBalance = new QLabel("Balance: $0.00", this);
-    m_totalPnL = new QLabel("PnL: $0.00", this);
-    m_totalPnLPercent = new QLabel("PnL: 0.00%", this);
+    m_netLiquidationValue = new QLabel("Net Liquidation: $0.00", this);
+    m_pnlUnrealized = new QLabel("PnL Unrealized: $0.00 / 0.00%", this);
+    m_pnlTotal = new QLabel("PnL Total: $0.00 / 0.00%", this);
     m_numTrades = new QLabel("Trades: 0", this);
-    m_winRate = new QLabel("Win Rate: 0.00%", this);
-    m_largestWin = new QLabel("Largest Win: $0.00", this);
-    m_largestLoss = new QLabel("Largest Loss: $0.00", this);
+    m_winRate = new QLabel("Winrate: 0.00%", this);
+    m_largestWin = new QLabel("Largest Win: $0.00 / 0.00%", this);
+    m_largestLoss = new QLabel("Largest Loss: $0.00 / 0.00%", this);
 
     // Left column
     statsLayout->addWidget(m_account, 0, 0);
     statsLayout->addWidget(m_totalBalance, 1, 0);
-    statsLayout->addWidget(m_totalPnL, 2, 0);
-    statsLayout->addWidget(m_totalPnLPercent, 3, 0);
+    statsLayout->addWidget(m_netLiquidationValue, 2, 0); // Only visible on Portfolio tab
+    statsLayout->addWidget(m_pnlUnrealized, 3, 0);
+    statsLayout->addWidget(m_pnlTotal, 4, 0);
 
     // Right column
     statsLayout->addWidget(m_numTrades, 0, 1);
     statsLayout->addWidget(m_winRate, 1, 1);
     statsLayout->addWidget(m_largestWin, 2, 1);
     statsLayout->addWidget(m_largestLoss, 3, 1);
+
+    // Hide Net Liquidation by default (only for Portfolio tab)
+    m_netLiquidationValue->hide();
 
     mainLayout->addWidget(statsWidget);
 }
@@ -90,8 +97,10 @@ void OrderHistoryWidget::setupTableColumns(QTableWidget *table)
         header->resizeSection(i, 60); // Default narrower width
     }
 
-    // Sort by Time column (last column, index 7) descending
-    table->sortItems(7, Qt::DescendingOrder);
+    // Sort by Time column (last column, index 7) descending (only for order tables)
+    if (table->columnCount() == 8) {
+        table->sortItems(7, Qt::DescendingOrder);
+    }
 
     header->setStretchLastSection(false);
     header->setSectionResizeMode(QHeaderView::Interactive);
@@ -328,10 +337,12 @@ void OrderHistoryWidget::addOrderToTable(QTableWidget* table, const TradeOrder& 
     table->insertRow(row);
 
     // Status column (0) - store orderId in UserRole
-    QString statusText = order.isPending() ? "⏳" : (order.isFilled() ? "✓" : "❌");
+    QString statusText = order.isPending() ? "⏳" : (order.isFilled() ? "✅" : "✖️");
     QTableWidgetItem* statusItem = new QTableWidgetItem(statusText);
     statusItem->setData(Qt::UserRole, order.orderId);
-    if (order.isFilled()) {
+    if (order.isCancelled()) {
+        statusItem->setForeground(Qt::gray);
+    } else if (order.isFilled()) {
         statusItem->setForeground(Qt::black);
     }
     table->setItem(row, 0, statusItem);
@@ -339,28 +350,32 @@ void OrderHistoryWidget::addOrderToTable(QTableWidget* table, const TradeOrder& 
     // Symbol (1)
     table->setItem(row, 1, new QTableWidgetItem(order.symbol));
 
-    // Quantity (2)
-    QString qtyText = QString::number(order.quantity);
-    if (order.isSell()) {
-        qtyText = "-" + qtyText;
+    // Buy/Sell (2) - colored
+    QString actionText = order.isBuy() ? "Buy" : "Sell";
+    QTableWidgetItem* actionItem = new QTableWidgetItem(actionText);
+    if (order.isBuy()) {
+        actionItem->setForeground(Qt::darkGreen);
+    } else {
+        actionItem->setForeground(Qt::red);
     }
-    table->setItem(row, 2, new QTableWidgetItem(qtyText));
+    table->setItem(row, 2, actionItem);
 
-    // Open $ (3)
-    double openPrice = order.isBuy() ? (order.isFilled() ? order.fillPrice : order.price) : 0.0;
-    QString openText = openPrice > 0 ? QString("$%1").arg(openPrice, 0, 'f', 2) : "-";
-    table->setItem(row, 3, new QTableWidgetItem(openText));
+    // Qty (3)
+    table->setItem(row, 3, new QTableWidgetItem(QString::number(order.quantity)));
 
-    // Close $ (4)
-    double closePrice = order.isSell() ? (order.isFilled() ? order.fillPrice : order.price) : 0.0;
-    QString closeText = closePrice > 0 ? QString("$%1").arg(closePrice, 0, 'f', 2) : "-";
-    table->setItem(row, 4, new QTableWidgetItem(closeText));
+    // Price (4) - filled price or limit price for pending
+    double price = order.isFilled() ? order.fillPrice : order.price;
+    QString priceText = QString("$%1").arg(price, 0, 'f', 2);
+    table->setItem(row, 4, new QTableWidgetItem(priceText));
 
-    // PnL $ (5) - calculated later
-    table->setItem(row, 5, new QTableWidgetItem("-"));
+    // Cost (5) - Qty × Price
+    double cost = order.quantity * price;
+    QString costText = QString("$%1").arg(cost, 0, 'f', 2);
+    table->setItem(row, 5, new QTableWidgetItem(costText));
 
-    // PnL % (6) - calculated later
-    table->setItem(row, 6, new QTableWidgetItem("-"));
+    // Commission (6) - only for filled orders
+    QString commissionText = order.isFilled() ? QString("$%1").arg(order.commission, 0, 'f', 2) : "-";
+    table->setItem(row, 6, new QTableWidgetItem(commissionText));
 
     // Time (7)
     QString timeText = order.timestamp.toString("hh:mm:ss");
@@ -377,22 +392,27 @@ void OrderHistoryWidget::addOrderToTable(QTableWidget* table, const TradeOrder& 
 void OrderHistoryWidget::updateOrderInTable(QTableWidget* table, int row, const TradeOrder& order)
 {
     // Update status
-    QString statusText = order.isPending() ? "⏳" : (order.isFilled() ? "✓" : "❌");
+    QString statusText = order.isPending() ? "⏳" : (order.isFilled() ? "✅" : "✖️");
     table->item(row, 0)->setText(statusText);
-    if (order.isFilled()) {
+    if (order.isCancelled()) {
+        table->item(row, 0)->setForeground(Qt::gray);
+    } else if (order.isFilled()) {
         table->item(row, 0)->setForeground(Qt::black);
     }
 
-    // Update Open $
-    if (order.isBuy() && order.isFilled()) {
-        QString openText = QString("$%1").arg(order.fillPrice, 0, 'f', 2);
-        table->item(row, 3)->setText(openText);
-    }
+    // Update Price if filled
+    if (order.isFilled()) {
+        QString priceText = QString("$%1").arg(order.fillPrice, 0, 'f', 2);
+        table->item(row, 4)->setText(priceText);
 
-    // Update Close $
-    if (order.isSell() && order.isFilled()) {
-        QString closeText = QString("$%1").arg(order.fillPrice, 0, 'f', 2);
-        table->item(row, 4)->setText(closeText);
+        // Update Cost
+        double cost = order.quantity * order.fillPrice;
+        QString costText = QString("$%1").arg(cost, 0, 'f', 2);
+        table->item(row, 5)->setText(costText);
+
+        // Update Commission
+        QString commissionText = QString("$%1").arg(order.commission, 0, 'f', 2);
+        table->item(row, 6)->setText(commissionText);
     }
 }
 
@@ -409,54 +429,43 @@ double OrderHistoryWidget::calculatePnL(const TradeOrder& buyOrder, const TradeO
 
 void OrderHistoryWidget::updateStatistics()
 {
-    double totalPnL = 0.0;
+    // TODO: Implement proper statistics calculation based on current tab
+    // Current tab: по поточному тікеру
+    // All tab: по всім тікерам за день
+    // Portfolio tab: з IBKR API updateAccountValue
+
+    // Placeholder values - will be implemented later
+    double pnlUnrealized = 0.0;
+    double pnlUnrealizedPercent = 0.0;
+    double pnlTotal = 0.0;
+    double pnlTotalPercent = 0.0;
     int numTrades = 0;
-    int numWins = 0;
+    double winRate = 0.0;
     double largestWin = 0.0;
+    double largestWinPercent = 0.0;
     double largestLoss = 0.0;
+    double largestLossPercent = 0.0;
 
-    // Calculate statistics from filled orders
-    QList<TradeOrder> buyOrders;
-    QList<TradeOrder> sellOrders;
+    // Update labels with new format
+    m_pnlUnrealized->setText(QString("PnL Unrealized: $%1 / %2%")
+        .arg(pnlUnrealized, 0, 'f', 2)
+        .arg(pnlUnrealizedPercent, 0, 'f', 2));
 
-    for (const TradeOrder& order : m_orders) {
-        if (order.isFilled()) {
-            if (order.isBuy()) {
-                buyOrders.append(order);
-            } else if (order.isSell()) {
-                sellOrders.append(order);
-            }
-        }
-    }
-
-    // Match buy/sell orders (simplified - assumes same symbol and FIFO)
-    for (const TradeOrder& sellOrder : sellOrders) {
-        for (const TradeOrder& buyOrder : buyOrders) {
-            if (buyOrder.symbol == sellOrder.symbol && buyOrder.isFilled()) {
-                double pnl = calculatePnL(buyOrder, sellOrder);
-                totalPnL += pnl;
-                numTrades++;
-
-                if (pnl > 0) {
-                    numWins++;
-                    if (pnl > largestWin) largestWin = pnl;
-                } else {
-                    if (pnl < largestLoss) largestLoss = pnl;
-                }
-                break;
-            }
-        }
-    }
-
-    // Update labels - simple text without styling to avoid Qt crashes
-    m_totalPnL->setText(QString("PnL: $%1").arg(totalPnL, 0, 'f', 2));
-
-    double winRate = numTrades > 0 ? (numWins * 100.0 / numTrades) : 0.0;
-    m_winRate->setText(QString("Win Rate: %1%").arg(winRate, 0, 'f', 2));
+    m_pnlTotal->setText(QString("PnL Total: $%1 / %2%")
+        .arg(pnlTotal, 0, 'f', 2)
+        .arg(pnlTotalPercent, 0, 'f', 2));
 
     m_numTrades->setText(QString("Trades: %1").arg(numTrades));
-    m_largestWin->setText(QString("Largest Win: $%1").arg(largestWin, 0, 'f', 2));
-    m_largestLoss->setText(QString("Largest Loss: $%1").arg(largestLoss, 0, 'f', 2));
+
+    m_winRate->setText(QString("Winrate: %1%").arg(winRate, 0, 'f', 2));
+
+    m_largestWin->setText(QString("Largest Win: $%1 / %2%")
+        .arg(largestWin, 0, 'f', 2)
+        .arg(largestWinPercent, 0, 'f', 2));
+
+    m_largestLoss->setText(QString("Largest Loss: $%1 / %2%")
+        .arg(largestLoss, 0, 'f', 2)
+        .arg(largestLossPercent, 0, 'f', 2));
 }
 void OrderHistoryWidget::updatePositionQuantityAfterFill(const QString& symbol, const QString& side, int fillQuantity)
 {

@@ -25,6 +25,7 @@ struct TradeOrder {
     QDateTime timestamp;
     double fillPrice;
     QDateTime fillTime;
+    double commission;
 
     TradeOrder()
         : orderId(0)
@@ -35,6 +36,7 @@ struct TradeOrder {
         , timestamp(QDateTime::currentDateTime())
         , fillPrice(0.0)
         , fillTime()
+        , commission(0.0)
     {}
 
     bool isBuy() const { return action == OrderAction::Buy; }

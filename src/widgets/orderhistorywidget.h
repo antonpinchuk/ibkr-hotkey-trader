@@ -58,8 +58,9 @@ private:
 
     QLabel *m_account;
     QLabel *m_totalBalance;
-    QLabel *m_totalPnL;
-    QLabel *m_totalPnLPercent;
+    QLabel *m_netLiquidationValue; // Only for Portfolio tab
+    QLabel *m_pnlUnrealized;
+    QLabel *m_pnlTotal;
     QLabel *m_winRate;
     QLabel *m_numTrades;
     QLabel *m_largestWin;
