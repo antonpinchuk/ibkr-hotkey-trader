@@ -226,8 +226,7 @@ void TradingManager::closeAllPositions()
 double TradingManager::getCurrentPosition() const
 {
     double pos = m_positions.value(m_currentSymbol, 0.0);
-    // LOG_DEBUG(QString("getCurrentPosition for %1: %2 (positions map size: %3)")
-        .arg(m_currentSymbol).arg(pos).arg(m_positions.size()));
+    // LOG_DEBUG(QString("getCurrentPosition for %1: %2 (positions map size: %3)").arg(m_currentSymbol).arg(pos).arg(m_positions.size()));
     return pos;
 }
 
