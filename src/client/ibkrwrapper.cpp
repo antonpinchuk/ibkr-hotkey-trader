@@ -179,7 +179,7 @@ void IBKRWrapper::openOrder(OrderId orderId, const Contract& contract, const Ord
         return;
     }
 
-    emit orderOpened(orderId, symbol, action, (int)quantity, order.lmtPrice);
+    emit orderOpened(orderId, symbol, action, (int)quantity, order.lmtPrice, order.permId);
 }
 
 void IBKRWrapper::openOrderEnd()
@@ -203,15 +203,16 @@ void IBKRWrapper::completedOrder(const Contract& contract, const Order& order, c
         return;
     }
 
-    LOG_INFO(QString("Completed order: id=%1, %2 %3 x%4 @ %5, status=%6")
+    LOG_INFO(QString("Completed order: id=%1, %2 %3 x%4 @ %5, status=%6, permId=%7")
         .arg(order.orderId)
         .arg(action)
         .arg(symbol)
         .arg(quantity)
         .arg(order.lmtPrice)
-        .arg(QString::fromStdString(orderState.status)));
+        .arg(QString::fromStdString(orderState.status))
+        .arg(order.permId));
 
-    emit orderOpened(order.orderId, symbol, action, (int)quantity, order.lmtPrice);
+    emit orderOpened(order.orderId, symbol, action, (int)quantity, order.lmtPrice, order.permId);
 }
 
 void IBKRWrapper::completedOrdersEnd()

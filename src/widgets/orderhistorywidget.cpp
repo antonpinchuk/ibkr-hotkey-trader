@@ -10,7 +10,8 @@
 
 OrderHistoryWidget::OrderHistoryWidget(QWidget *parent)
     : QWidget(parent),
-      m_showCancelledAndZeroPositions(false)
+      m_showCancelledAndZeroPositions(false),
+      m_currentSymbol("")
 {
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(0, 0, 0, 0);
@@ -19,13 +20,13 @@ OrderHistoryWidget::OrderHistoryWidget(QWidget *parent)
 
     // Current/All tabs - 8 columns
     m_currentTable = new QTableWidget(0, 8, this);
-    m_currentTable->setHorizontalHeaderLabels({"Status", "Symbol", "Buy/Sell", "Qty", "Price", "Cost", "Comm", "Time"});
+    m_currentTable->setHorizontalHeaderLabels({"Status", "Symbol", "Action", "Qty", "Price", "Cost", "Comm", "Time"});
     setupTableColumns(m_currentTable);
-    restoreColumnWidths(m_currentTable, "order_history_current");
+    restoreColumnWidths(m_currentTable, "order_history_all");  // Use same widths as All table
     m_tabWidget->addTab(m_currentTable, "Current");
 
     m_allTable = new QTableWidget(0, 8, this);
-    m_allTable->setHorizontalHeaderLabels({"Status", "Symbol", "Buy/Sell", "Qty", "Price", "Cost", "Comm", "Time"});
+    m_allTable->setHorizontalHeaderLabels({"Status", "Symbol", "Action", "Qty", "Price", "Cost", "Comm", "Time"});
     setupTableColumns(m_allTable);
     restoreColumnWidths(m_allTable, "order_history_all");
     m_tabWidget->addTab(m_allTable, "All");
@@ -92,21 +93,62 @@ void OrderHistoryWidget::setupTableColumns(QTableWidget *table)
 {
     QHeaderView *header = table->horizontalHeader();
 
-    // Make all columns narrower (half default size)
-    for (int i = 0; i < table->columnCount(); ++i) {
-        header->resizeSection(i, 60); // Default narrower width
-    }
-
-    // Sort by Time column (last column, index 7) descending (only for order tables)
+    // Set initial column widths for order tables (8 columns)
     if (table->columnCount() == 8) {
-        table->sortItems(7, Qt::DescendingOrder);
+        // Order tables: Status, Symbol, Action, Qty, Price, Cost, Comm, Time
+        header->resizeSection(0, 40);  // Status - narrower
+        header->resizeSection(1, 60);  // Symbol
+        header->resizeSection(2, 50);  // Action
+        header->resizeSection(3, 60);  // Qty
+        header->resizeSection(4, 60);  // Price
+        header->resizeSection(5, 60);  // Cost
+        header->resizeSection(6, 60);  // Comm
+        header->resizeSection(7, 60);  // Time
+
+        // Enable auto-sorting
+        table->setSortingEnabled(true);
+        table->sortItems(7, Qt::DescendingOrder); // Sort by Time column descending
+    } else {
+        // Default for other tables
+        for (int i = 0; i < table->columnCount(); ++i) {
+            header->resizeSection(i, 60);
+        }
     }
 
     header->setStretchLastSection(false);
     header->setSectionResizeMode(QHeaderView::Interactive);
 
-    // Right-align header labels
-    header->setDefaultAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    // Set header alignment for order tables
+    if (table->columnCount() == 8) {
+        // Order tables: different alignment per column
+        QTableWidgetItem *headerItem;
+
+        // Status - center
+        headerItem = new QTableWidgetItem("Status");
+        headerItem->setTextAlignment(Qt::AlignCenter);
+        table->setHorizontalHeaderItem(0, headerItem);
+
+        // Symbol - left
+        headerItem = new QTableWidgetItem("Symbol");
+        headerItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        table->setHorizontalHeaderItem(1, headerItem);
+
+        // Action - left
+        headerItem = new QTableWidgetItem("Action");
+        headerItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        table->setHorizontalHeaderItem(2, headerItem);
+
+        // Qty, Price, Cost, Comm, Time - right
+        for (int col = 3; col < 8; ++col) {
+            headerItem = table->horizontalHeaderItem(col);
+            if (headerItem) {
+                headerItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+            }
+        }
+    } else {
+        // Default alignment for other tables
+        header->setDefaultAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    }
 }
 
 void OrderHistoryWidget::restoreColumnWidths(QTableWidget *table, const QString& tableName)
@@ -124,10 +166,26 @@ void OrderHistoryWidget::restoreColumnWidths(QTableWidget *table, const QString&
 
 void OrderHistoryWidget::connectColumnResizeSignals()
 {
-    connect(m_currentTable->horizontalHeader(), &QHeaderView::sectionResized,
-            this, &OrderHistoryWidget::saveColumnWidths);
+    // For order tables (Current/All), sync widths when All table is resized
     connect(m_allTable->horizontalHeader(), &QHeaderView::sectionResized,
-            this, &OrderHistoryWidget::saveColumnWidths);
+            this, [this](int logicalIndex, int oldSize, int newSize) {
+        Q_UNUSED(oldSize);
+        // Sync width to Current table
+        m_currentTable->horizontalHeader()->resizeSection(logicalIndex, newSize);
+        // Save widths
+        saveColumnWidths();
+    });
+
+    // When Current table is resized, sync to All and save
+    connect(m_currentTable->horizontalHeader(), &QHeaderView::sectionResized,
+            this, [this](int logicalIndex, int oldSize, int newSize) {
+        Q_UNUSED(oldSize);
+        // Sync width to All table
+        m_allTable->horizontalHeader()->resizeSection(logicalIndex, newSize);
+        // Save widths
+        saveColumnWidths();
+    });
+
     connect(m_positionsTable->horizontalHeader(), &QHeaderView::sectionResized,
             this, &OrderHistoryWidget::saveColumnWidths);
 }
@@ -136,14 +194,7 @@ void OrderHistoryWidget::saveColumnWidths()
 {
     UIState& uiState = UIState::instance();
 
-    // Save current table widths
-    QList<int> currentWidths;
-    for (int i = 0; i < m_currentTable->columnCount(); ++i) {
-        currentWidths << m_currentTable->columnWidth(i);
-    }
-    uiState.saveTableColumnWidths("order_history_current", currentWidths);
-
-    // Save all table widths
+    // Save All table widths (Current uses the same widths)
     QList<int> allWidths;
     for (int i = 0; i < m_allTable->columnCount(); ++i) {
         allWidths << m_allTable->columnWidth(i);
@@ -170,38 +221,41 @@ void OrderHistoryWidget::setBalance(double balance)
 
 void OrderHistoryWidget::addOrder(const TradeOrder& order)
 {
+    // Deduplication logic
+    int existingOrderId = -1;
+
+    // If orderId is 0, try to match by symbol+qty or symbol+price
+    if (order.orderId == 0) {
+        existingOrderId = findOrderByMatch(order);
+        if (existingOrderId >= 0) {
+            LOG_DEBUG(QString("Matched order with orderId=0 to existing order %1").arg(existingOrderId));
+            // Update existing order instead of creating new one
+            TradeOrder updatedOrder = order;
+            updatedOrder.orderId = existingOrderId; // Use existing order ID
+            updateOrder(updatedOrder);
+            return;
+        }
+    } else if (m_orders.contains(order.orderId)) {
+        // Order already exists with this ID - update it
+        LOG_DEBUG(QString("Order %1 already exists, updating").arg(order.orderId));
+        updateOrder(order);
+        return;
+    }
+
+    // Add new order to memory (always keep in memory)
     m_orders[order.orderId] = order;
 
-    // Add to both tables
-    addOrderToTable(m_currentTable, order);
-    addOrderToTable(m_allTable, order);
-
-    updateStatistics();
+    // Rebuild tables to show the new order (respecting filters)
+    rebuildTables();
 }
 
 void OrderHistoryWidget::updateOrder(const TradeOrder& order)
 {
+    // Update order in memory (always keep in memory)
     m_orders[order.orderId] = order;
 
-    // Update in current table
-    int currentRow = findOrderRow(m_currentTable, order.orderId);
-    if (currentRow >= 0) {
-        updateOrderInTable(m_currentTable, currentRow, order);
-
-        // If filled or cancelled, remove from current table
-        if (order.isFilled() || order.isCancelled()) {
-            m_currentTable->removeRow(currentRow);
-            m_currentTableRows.remove(order.orderId);
-        }
-    }
-
-    // Update in all table
-    int allRow = findOrderRow(m_allTable, order.orderId);
-    if (allRow >= 0) {
-        updateOrderInTable(m_allTable, allRow, order);
-    }
-
-    updateStatistics();
+    // Rebuild tables to reflect the update (respecting filters)
+    rebuildTables();
 }
 
 void OrderHistoryWidget::removeOrder(int orderId)
@@ -210,67 +264,19 @@ void OrderHistoryWidget::removeOrder(int orderId)
         return;
     }
 
-    TradeOrder& order = m_orders[orderId];
-
-    // If showing cancelled orders, just update the order status instead of removing
-    if (m_showCancelledAndZeroPositions && order.isCancelled()) {
-        updateOrder(order);
-        return;
-    }
-
-    // Remove cancelled orders from both tables (default behavior)
-    int currentRow = findOrderRow(m_currentTable, orderId);
-    if (currentRow >= 0) {
-        m_currentTable->removeRow(currentRow);
-        m_currentTableRows.remove(orderId);
-    }
-
-    int allRow = findOrderRow(m_allTable, orderId);
-    if (allRow >= 0) {
-        m_allTable->removeRow(allRow);
-        m_allTableRows.remove(orderId);
-    }
-
+    // Remove order from memory completely
     m_orders.remove(orderId);
-    updateStatistics();
+
+    // Rebuild tables
+    rebuildTables();
 }
 
 void OrderHistoryWidget::setShowCancelledAndZeroPositions(bool show)
 {
     m_showCancelledAndZeroPositions = show;
 
-    // Rebuild orders tables based on cancelled orders setting
-    if (show) {
-        // Show all orders including cancelled
-        // No need to rebuild - cancelled orders are already in m_orders
-    } else {
-        // Hide cancelled orders - remove them from tables
-        QList<int> cancelledOrderIds;
-        for (auto it = m_orders.begin(); it != m_orders.end(); ++it) {
-            if (it.value().isCancelled()) {
-                cancelledOrderIds.append(it.key());
-            }
-        }
-
-        for (int orderId : cancelledOrderIds) {
-            // Remove from tables
-            int currentRow = findOrderRow(m_currentTable, orderId);
-            if (currentRow >= 0) {
-                m_currentTable->removeRow(currentRow);
-                m_currentTableRows.remove(orderId);
-            }
-
-            int allRow = findOrderRow(m_allTable, orderId);
-            if (allRow >= 0) {
-                m_allTable->removeRow(allRow);
-                m_allTableRows.remove(orderId);
-            }
-
-            m_orders.remove(orderId);
-        }
-
-        updateStatistics();
-    }
+    // Rebuild order tables with new filter setting
+    rebuildTables();
 
     // Rebuild positions table based on zero positions setting
     // Build list of zero positions to show/hide
@@ -336,9 +342,10 @@ void OrderHistoryWidget::addOrderToTable(QTableWidget* table, const TradeOrder& 
     int row = table->rowCount();
     table->insertRow(row);
 
-    // Status column (0) - store orderId in UserRole
+    // Status column (0) - center aligned, store orderId in UserRole
     QString statusText = order.isPending() ? "⏳" : (order.isFilled() ? "✅" : "✖️");
     QTableWidgetItem* statusItem = new QTableWidgetItem(statusText);
+    statusItem->setTextAlignment(Qt::AlignCenter);
     statusItem->setData(Qt::UserRole, order.orderId);
     if (order.isCancelled()) {
         statusItem->setForeground(Qt::gray);
@@ -347,12 +354,15 @@ void OrderHistoryWidget::addOrderToTable(QTableWidget* table, const TradeOrder& 
     }
     table->setItem(row, 0, statusItem);
 
-    // Symbol (1)
-    table->setItem(row, 1, new QTableWidgetItem(order.symbol));
+    // Symbol (1) - left aligned
+    QTableWidgetItem* symbolItem = new QTableWidgetItem(order.symbol);
+    symbolItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    table->setItem(row, 1, symbolItem);
 
-    // Buy/Sell (2) - colored
+    // Action (2) - left aligned, colored
     QString actionText = order.isBuy() ? "Buy" : "Sell";
     QTableWidgetItem* actionItem = new QTableWidgetItem(actionText);
+    actionItem->setTextAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     if (order.isBuy()) {
         actionItem->setForeground(Qt::darkGreen);
     } else {
@@ -360,26 +370,45 @@ void OrderHistoryWidget::addOrderToTable(QTableWidget* table, const TradeOrder& 
     }
     table->setItem(row, 2, actionItem);
 
-    // Qty (3)
-    table->setItem(row, 3, new QTableWidgetItem(QString::number(order.quantity)));
+    // Qty (3) - right aligned
+    QTableWidgetItem* qtyItem = new QTableWidgetItem(QString::number(order.quantity));
+    qtyItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    table->setItem(row, 3, qtyItem);
 
-    // Price (4) - filled price or limit price for pending
+    // Price (4) - right aligned, filled price or limit price for pending
     double price = order.isFilled() ? order.fillPrice : order.price;
     QString priceText = QString("$%1").arg(price, 0, 'f', 2);
-    table->setItem(row, 4, new QTableWidgetItem(priceText));
+    QTableWidgetItem* priceItem = new QTableWidgetItem(priceText);
+    priceItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    table->setItem(row, 4, priceItem);
 
-    // Cost (5) - Qty × Price
+    // Cost (5) - right aligned, Qty × Price
     double cost = order.quantity * price;
     QString costText = QString("$%1").arg(cost, 0, 'f', 2);
-    table->setItem(row, 5, new QTableWidgetItem(costText));
+    QTableWidgetItem* costItem = new QTableWidgetItem(costText);
+    costItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    table->setItem(row, 5, costItem);
 
-    // Commission (6) - only for filled orders
-    QString commissionText = order.isFilled() ? QString("$%1").arg(order.commission, 0, 'f', 2) : "-";
-    table->setItem(row, 6, new QTableWidgetItem(commissionText));
+    // Commission (6) - right aligned
+    QString commissionText = order.commission > 0 ? QString("$%1").arg(order.commission, 0, 'f', 2) : "";
+    QTableWidgetItem* commItem = new QTableWidgetItem(commissionText);
+    commItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    table->setItem(row, 6, commItem);
 
-    // Time (7)
-    QString timeText = order.timestamp.toString("hh:mm:ss");
-    table->setItem(row, 7, new QTableWidgetItem(timeText));
+    // Time (7) - use sortOrder for sorting
+    // sortOrder contains: timestamp (msecs) for new orders, counter for historical orders
+    // Show time only for orders with valid timestamp
+    QString timeText = "";
+    if (order.isFilled() && order.fillTime.isValid()) {
+        timeText = order.fillTime.toString("hh:mm:ss");
+    } else if (order.timestamp.isValid()) {
+        timeText = order.timestamp.toString("hh:mm:ss");
+    }
+
+    NumericTableWidgetItem* timeItem = new NumericTableWidgetItem(timeText);
+    timeItem->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    timeItem->setData(Qt::UserRole, (double)order.sortOrder);
+    table->setItem(row, 7, timeItem);
 
     // Track row
     if (table == m_currentTable) {
@@ -591,4 +620,116 @@ void OrderHistoryWidget::updatePosition(const QString& symbol, double quantity, 
         m_positionsTable->setSortingEnabled(true);
         m_positionsTable->sortItems(7, Qt::DescendingOrder); // Initial sort by P&L %
     }
+}
+
+void OrderHistoryWidget::setCurrentSymbol(const QString& symbol)
+{
+    m_currentSymbol = symbol;
+    // Only rebuild Current table (All table is not affected by symbol change)
+    rebuildCurrentTable();
+}
+
+void OrderHistoryWidget::rebuildCurrentTable()
+{
+    // Disable sorting during rebuild for performance
+    bool sortingEnabled = m_currentTable->isSortingEnabled();
+    m_currentTable->setSortingEnabled(false);
+
+    // Clear table
+    m_currentTable->setRowCount(0);
+    m_currentTableRows.clear();
+
+    // Add orders that match filters:
+    // - symbol == m_currentSymbol
+    // - if cancelled, only show if m_showCancelledAndZeroPositions == true
+    for (auto it = m_orders.begin(); it != m_orders.end(); ++it) {
+        const TradeOrder& order = it.value();
+
+        // Filter by symbol
+        if (order.symbol != m_currentSymbol) {
+            continue;
+        }
+
+        // Filter by cancelled status
+        if (order.isCancelled() && !m_showCancelledAndZeroPositions) {
+            continue;
+        }
+
+        addOrderToTable(m_currentTable, order);
+    }
+
+    // Re-enable sorting
+    m_currentTable->setSortingEnabled(sortingEnabled);
+}
+
+void OrderHistoryWidget::rebuildAllTable()
+{
+    // Disable sorting during rebuild for performance
+    bool sortingEnabled = m_allTable->isSortingEnabled();
+    m_allTable->setSortingEnabled(false);
+
+    // Clear table
+    m_allTable->setRowCount(0);
+    m_allTableRows.clear();
+
+    // Add all orders that match filters:
+    // - if cancelled, only show if m_showCancelledAndZeroPositions == true
+    for (auto it = m_orders.begin(); it != m_orders.end(); ++it) {
+        const TradeOrder& order = it.value();
+
+        // Filter by cancelled status
+        if (order.isCancelled() && !m_showCancelledAndZeroPositions) {
+            continue;
+        }
+
+        addOrderToTable(m_allTable, order);
+    }
+
+    // Re-enable sorting
+    m_allTable->setSortingEnabled(sortingEnabled);
+}
+
+void OrderHistoryWidget::rebuildTables()
+{
+    rebuildCurrentTable();
+    rebuildAllTable();
+    updateStatistics();
+}
+
+int OrderHistoryWidget::findOrderByMatch(const TradeOrder& order)
+{
+    // Try to find existing order by matching symbol + (qty or price)
+    // This is for orders with orderId=0 from completedOrders
+    for (auto it = m_orders.begin(); it != m_orders.end(); ++it) {
+        const TradeOrder& existing = it.value();
+
+        // Same symbol and same action (Buy/Sell)
+        if (existing.symbol == order.symbol && existing.action == order.action) {
+            // Match by quantity (same qty, status PreSubmitted)
+            if (existing.quantity == order.quantity && existing.isPending()) {
+                return it.key();
+            }
+            // Match by price (same price, status PreSubmitted)
+            if (qAbs(existing.price - order.price) < 0.01 && existing.isPending()) {
+                return it.key();
+            }
+        }
+    }
+
+    return -1; // Not found
+}
+
+void OrderHistoryWidget::updateCommission(int orderId, double commission)
+{
+    if (!m_orders.contains(orderId)) {
+        LOG_WARNING(QString("Commission report for unknown order: %1").arg(orderId));
+        return;
+    }
+
+    // Update commission in memory
+    TradeOrder& order = m_orders[orderId];
+    order.commission = commission;
+
+    // Rebuild tables to show updated commission
+    rebuildTables();
 }

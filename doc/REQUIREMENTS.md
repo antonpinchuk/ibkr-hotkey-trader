@@ -337,6 +337,15 @@ Order Type: LMT, TimeInForce: OVERNIGHT+DAY, fill outside RTH: true
 - Historical data: `reqHistoricalData` для свічок
 - Orders: через `placeOrder`, `cancelOrder`
 
+### Order Tracking & Deduplication
+- Дедуплікація callback-ів -> matching по `orderId` (API orders) або `symbol+action+qty/price` (historical orders)
+- Сортування по `permId`
+
+### Threads & mutexes
+- EReader потік (TWS API) + main thread Qt timer
+- Try-catch в `processMsgs()` для graceful handling
+- НЕ використовувати додатковий QMutex (deadlock!)
+
 ### Dependencies
 - Qt 6.2+
 - CMake 3.16+

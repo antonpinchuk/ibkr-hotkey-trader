@@ -37,7 +37,7 @@ signals:
 
 private slots:
     void onTickByTickUpdated(int reqId, double price, double bidPrice, double askPrice);
-    void onOrderConfirmed(int orderId, const QString& symbol, const QString& action, int quantity, double price);
+    void onOrderConfirmed(int orderId, const QString& symbol, const QString& action, int quantity, double price, long long permId);
     void onOrderStatusUpdated(int orderId, const QString& status, double filled, double remaining, double avgFillPrice);
     void onError(int id, int code, const QString& message);
 

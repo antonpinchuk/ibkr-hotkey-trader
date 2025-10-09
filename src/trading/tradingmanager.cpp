@@ -231,14 +231,17 @@ void TradingManager::onTickByTickUpdated(int reqId, double price, double bidPric
         .arg(reqId).arg(m_currentSymbol).arg(price).arg(bidPrice).arg(askPrice));
 }
 
-void TradingManager::onOrderConfirmed(int orderId, const QString& symbol, const QString& action, int quantity, double price)
+void TradingManager::onOrderConfirmed(int orderId, const QString& symbol, const QString& action, int quantity, double price, long long permId)
 {
-    LOG_INFO(QString("Order confirmed by TWS: orderId=%1, symbol=%2, action=%3, qty=%4, price=%5")
-        .arg(orderId).arg(symbol).arg(action).arg(quantity).arg(price, 0, 'f', 2));
+    LOG_INFO(QString("Order confirmed by TWS: orderId=%1, symbol=%2, action=%3, qty=%4, price=%5, permId=%6")
+        .arg(orderId).arg(symbol).arg(action).arg(quantity).arg(price, 0, 'f', 2).arg(permId));
 
     // Check if we have this order in pending orders
     if (m_orders.contains(orderId)) {
         TradeOrder& order = m_orders[orderId];
+        order.permId = permId; // Store permId for sorting
+        order.timestamp = QDateTime::currentDateTime(); // Update timestamp when confirmed by TWS
+        order.sortOrder = order.timestamp.toMSecsSinceEpoch(); // Update sortOrder
         // Now emit to UI - order is confirmed by TWS
         emit orderPlaced(order);
     } else {
@@ -276,8 +279,15 @@ void TradingManager::onOrderStatusUpdated(int orderId, const QString& status, do
         // Convert string status to enum
         if (status == "Filled") {
             order.status = OrderStatus::Filled;
+            order.fillTime = QDateTime::currentDateTime(); // Set fill time
+            // Update timestamp when order changes to filled
+            order.timestamp = QDateTime::currentDateTime();
+            order.sortOrder = order.fillTime.toMSecsSinceEpoch(); // Use fillTime for sorting
         } else if (status == "Cancelled") {
             order.status = OrderStatus::Cancelled;
+            // Update timestamp when order changes to cancelled
+            order.timestamp = QDateTime::currentDateTime();
+            order.sortOrder = order.timestamp.toMSecsSinceEpoch(); // Update sortOrder
         } else {
             order.status = OrderStatus::Pending;
         }
@@ -383,6 +393,7 @@ int TradingManager::placeOrder(const QString& action, int quantity, double price
     order.status = OrderStatus::Pending;
     order.fillPrice = 0.0;
     order.timestamp = QDateTime::currentDateTime();
+    order.sortOrder = order.timestamp.toMSecsSinceEpoch(); // Use timestamp for sorting new orders
 
     m_orders[orderId] = order;
 

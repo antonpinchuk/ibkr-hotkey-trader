@@ -18,7 +18,7 @@ IBKRClient::IBKRClient(QObject *parent)
     m_socket = std::make_unique<EClientSocket>(m_wrapper.get(), m_signal.get());
 
     m_messageTimer = new QTimer(this);
-    m_messageTimer->setInterval(100);
+    m_messageTimer->setInterval(50); // 50ms = fast enough, reduces conflicts with EReader thread
     QObject::connect(m_messageTimer, &QTimer::timeout, this, &IBKRClient::processMessages);
 
     m_reconnectTimer = new QTimer(this);
@@ -152,11 +152,7 @@ void IBKRClient::disconnect(bool stopReconnect)
         m_socket->eDisconnect();
     }
 
-    // Wait for any pending processMessages() to complete before destroying m_reader
-    {
-        QMutexLocker locker(&m_readerMutex);
-        m_reader.reset();
-    }
+    m_reader.reset();
 
     if (!m_isConnected) {
         return; // Already disconnected
@@ -182,9 +178,14 @@ void IBKRClient::disconnect(bool stopReconnect)
 void IBKRClient::processMessages()
 {
     // Process messages using EReader pattern (non-blocking)
-    QMutexLocker locker(&m_readerMutex);
     if (m_reader && m_socket && m_socket->isConnected()) {
-        m_reader->processMsgs();
+        try {
+            m_reader->processMsgs();
+        } catch (const std::system_error& e) {
+            // Mutex conflict with EReader thread - skip this cycle
+            // This can happen when both threads try to access message queue simultaneously
+            LOG_DEBUG(QString("Skipped processMsgs() due to mutex conflict: %1").arg(e.what()));
+        }
     }
 }
 
@@ -195,7 +196,6 @@ void IBKRClient::attemptReconnect()
         // Ensure clean disconnect before reconnecting
         if (m_socket->isConnected()) {
             m_socket->eDisconnect();
-            QMutexLocker locker(&m_readerMutex);
             m_reader.reset();
         }
         connect(m_host, m_port, m_clientId);

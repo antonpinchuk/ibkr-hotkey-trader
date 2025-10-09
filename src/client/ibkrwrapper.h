@@ -8,7 +8,6 @@
 #include <memory>
 
 class IBKRClient;
-struct CommissionReport;  // Forward declaration
 
 class IBKRWrapper : public QObject, public DefaultEWrapper
 {
@@ -100,9 +99,8 @@ public:
     // Market Data Type - Not used but must be implemented
     void marketDataType(TickerId reqId, int marketDataType) override {}
 
-    // Commission Report - Not used but must be implemented
-    // Note: Using forward declaration, so can't use override keyword
-    void commissionReport(const CommissionReport& commission) {}
+    // Commission Report - Not available in current TWS API version
+    // Commission is tracked manually or from other sources
 
     // Account Summary - Not used but must be implemented
     void accountSummary(int reqId, const std::string& account, const std::string& tag, const std::string& value, const std::string& currency) override {}
@@ -200,7 +198,7 @@ signals:
     void historicalDataReceived(int reqId, long time, double open, double high, double low, double close, long volume);
     void historicalDataComplete(int reqId);
 
-    void orderOpened(int orderId, const QString& symbol, const QString& action, int quantity, double price);
+    void orderOpened(int orderId, const QString& symbol, const QString& action, int quantity, double price, long long permId);
     void orderStatusChanged(int orderId, const QString& status, double filled, double remaining, double avgFillPrice);
     void executionReceived(int orderId, const QString& symbol, const QString& side, double fillPrice, int fillQuantity);
 

@@ -144,6 +144,10 @@ private:
     QMap<QString, int> m_symbolToTickerId;       // symbol -> tickerId
     QMap<int, QString> m_tickerIdToSymbol;       // tickerId -> symbol
     QMap<QString, QString> m_symbolToExchange;   // symbol -> primaryExchange
+
+    // Order sorting and unique IDs
+    qint64 m_historicalOrderCounter;             // Counter for historical orders (incremented on each historical order)
+    int m_nextHistoricalOrderId;                 // Unique negative ID generator for historical orders (-1, -2, -3, ...)
 };
 
 #endif // MAINWINDOW_H

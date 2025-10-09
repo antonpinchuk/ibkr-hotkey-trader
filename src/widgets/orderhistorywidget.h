@@ -32,10 +32,12 @@ public:
     void setAccount(const QString& account);
     void setBalance(double balance);
     void setShowCancelledAndZeroPositions(bool show);
+    void setCurrentSymbol(const QString& symbol); // Set current symbol for Current tab filtering
 
 public slots:
     void addOrder(const TradeOrder& order);
     void updateOrder(const TradeOrder& order);
+    void updateCommission(int orderId, double commission);
     void removeOrder(int orderId);
     void updateCurrentPrice(const QString& symbol, double price);
     void updatePosition(const QString& symbol, double quantity, double avgCost, double marketPrice, double unrealizedPNL);
@@ -47,9 +49,13 @@ private:
     void connectColumnResizeSignals();
     void updateStatistics();
     int findOrderRow(QTableWidget* table, int orderId);
+    int findOrderByMatch(const TradeOrder& order); // Find order by symbol+qty or symbol+price
     void addOrderToTable(QTableWidget* table, const TradeOrder& order);
     void updateOrderInTable(QTableWidget* table, int row, const TradeOrder& order);
     double calculatePnL(const TradeOrder& buyOrder, const TradeOrder& sellOrder);
+    void rebuildCurrentTable(); // Rebuild Current tab based on current symbol
+    void rebuildAllTable(); // Rebuild All tab based on filters
+    void rebuildTables(); // Rebuild both tables
 
     QTabWidget *m_tabWidget;
     QTableWidget *m_currentTable;
@@ -83,6 +89,7 @@ private:
     QMutex m_positionsMutex; // Thread-safe access to positions
 
     bool m_showCancelledAndZeroPositions;
+    QString m_currentSymbol; // Current symbol for filtering Current tab
 };
 
 #endif // ORDERHISTORYWIDGET_H

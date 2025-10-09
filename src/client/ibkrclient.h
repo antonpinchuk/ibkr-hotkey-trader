@@ -65,7 +65,7 @@ signals:
     void historicalBarReceived(int reqId, long time, double open, double high, double low, double close, long volume);
     void historicalDataFinished(int reqId);
 
-    void orderConfirmed(int orderId, const QString& symbol, const QString& action, int quantity, double price);
+    void orderConfirmed(int orderId, const QString& symbol, const QString& action, int quantity, double price, long long permId);
     void orderStatusUpdated(int orderId, const QString& status, double filled, double remaining, double avgFillPrice);
     void orderFilled(int orderId, const QString& symbol, const QString& side, double fillPrice, int fillQuantity);
 
@@ -90,7 +90,6 @@ private:
     std::unique_ptr<EReaderOSSignal> m_signal;
     QTimer *m_messageTimer;
     QTimer *m_reconnectTimer;
-    QMutex m_readerMutex;  // Protect m_reader access
 
     bool m_isConnected;
     QString m_host;

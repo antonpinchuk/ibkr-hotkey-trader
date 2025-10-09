@@ -40,6 +40,8 @@ MainWindow::MainWindow(QWidget *parent)
     , m_ibkrClient(nullptr)
     , m_tradingManager(nullptr)
     , m_nextTickerId(1000)  // Start from 1000 to avoid conflicts
+    , m_historicalOrderCounter(1)  // Start from 1 for historical orders
+    , m_nextHistoricalOrderId(-1)  // Start from -1 for unique historical order IDs
 {
     setWindowTitle("IBKR Hotkey Trader");
     resize(1400, 800);
@@ -402,6 +404,31 @@ void MainWindow::setupConnections()
         m_orderHistory->updatePositionQuantityAfterFill(symbol, side, fillQuantity);
     });
 
+    // Handle completed orders from TWS (historical orders with orderId=0)
+    connect(m_ibkrClient, &IBKRClient::orderConfirmed, this, [this](int orderId, const QString& symbol, const QString& action, int quantity, double price, long long permId) {
+        // Only process historical orders (orderId=0) here
+        // Orders from TradingManager are handled via orderPlaced signal
+        if (orderId == 0) {
+            TradeOrder order;
+            // Generate unique negative ID for historical orders (since TWS gives them orderId=0)
+            order.orderId = m_nextHistoricalOrderId--;  // -1, -2, -3, ...
+            order.symbol = symbol;
+            order.action = (action == "BUY") ? OrderAction::Buy : OrderAction::Sell;
+            order.quantity = quantity;
+            order.price = price;
+            order.fillPrice = price; // Completed orders are already filled
+            // Cancelled orders have quantity=0
+            order.status = (quantity > 0) ? OrderStatus::Filled : OrderStatus::Cancelled;
+            order.timestamp = QDateTime(); // Empty timestamp for historical orders
+            order.fillTime = QDateTime(); // Empty fill time for historical orders
+            order.commission = 0.0; // Commission not available in current API
+            order.permId = permId; // For sorting
+            order.sortOrder = m_historicalOrderCounter++; // Counter: first order = 1, second = 2, etc.
+
+            m_orderHistory->addOrder(order);
+        }
+    });
+
     // Symbol search
     connect(m_symbolSearch, &SymbolSearchDialog::symbolSelected, this, &MainWindow::onSymbolSelected);
 
@@ -551,6 +578,7 @@ void MainWindow::onSymbolSelected(const QString& symbol, const QString& exchange
         m_tickerList->setCurrentSymbol(symbol);
         m_chart->setSymbol(symbol);
         m_tradingManager->setSymbol(symbol);
+        m_orderHistory->setCurrentSymbol(symbol);
 
         // Update TradingManager with exchange info
         if (m_symbolToExchange.contains(symbol)) {
@@ -918,6 +946,7 @@ void MainWindow::onMarketDataError(int tickerId)
             m_tickerList->setCurrentSymbol(m_previousSymbol);
             m_chart->setSymbol(m_previousSymbol);
             m_tradingManager->setSymbol(m_previousSymbol);
+            m_orderHistory->setCurrentSymbol(m_previousSymbol);
         } else {
             m_currentSymbol.clear();
             m_tickerList->setTickerLabel("N/A");
@@ -958,6 +987,7 @@ void MainWindow::onTickByTickUpdated(int reqId, double price, double bidPrice, d
         m_tickerList->setCurrentSymbol(symbol);
         m_chart->setSymbol(symbol);
         m_tradingManager->setSymbol(symbol);
+        m_orderHistory->setCurrentSymbol(symbol);
 
         // Update TradingManager with exchange info
         if (m_symbolToExchange.contains(symbol)) {

@@ -26,6 +26,8 @@ struct TradeOrder {
     double fillPrice;
     QDateTime fillTime;
     double commission;
+    long long permId; // Permanent order ID from TWS (for sorting)
+    qint64 sortOrder; // Sorting field: timestamp for new orders, counter for historical orders
 
     TradeOrder()
         : orderId(0)
@@ -37,6 +39,8 @@ struct TradeOrder {
         , fillPrice(0.0)
         , fillTime()
         , commission(0.0)
+        , permId(0)
+        , sortOrder(0)
     {}
 
     bool isBuy() const { return action == OrderAction::Buy; }
