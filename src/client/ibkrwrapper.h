@@ -18,6 +18,7 @@ public:
     virtual ~IBKRWrapper() = default;
 
     void resetSession();
+    void resetTickByTickLogging(int reqId);
 
     // Connection and Server
     void connectAck() override;
@@ -228,6 +229,7 @@ private:
     // Session tracking for first-time logging
     bool m_accountValueLogged = false;
     bool m_portfolioLogged = false;
+    QMap<int, bool> m_tickByTickLogged; // Track which reqIds have logged at least one tick
 };
 
 #endif // IBKRWRAPPER_H

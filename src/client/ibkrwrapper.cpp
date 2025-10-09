@@ -12,12 +12,19 @@ IBKRWrapper::IBKRWrapper(IBKRClient *client)
     , m_accountValueLogged(false)
     , m_portfolioLogged(false)
 {
+    // m_tickByTickLogged is QMap and initializes empty automatically
 }
 
 void IBKRWrapper::resetSession()
 {
     m_accountValueLogged = false;
     m_portfolioLogged = false;
+    m_tickByTickLogged.clear();
+}
+
+void IBKRWrapper::resetTickByTickLogging(int reqId)
+{
+    m_tickByTickLogged.remove(reqId);
 }
 
 void IBKRWrapper::connectAck()
@@ -120,7 +127,11 @@ void IBKRWrapper::tickByTickAllLast(int reqId, int tickType, time_t time, double
 
 void IBKRWrapper::tickByTickBidAsk(int reqId, time_t time, double bidPrice, double askPrice, Decimal bidSize, Decimal askSize, const TickAttribBidAsk& tickAttribBidAsk)
 {
-    LOG_DEBUG(QString("tickByTickBidAsk [reqId=%1]: bid=%2, ask=%3").arg(reqId).arg(bidPrice).arg(askPrice));
+    // Log only first successful tick for each reqId (similar to account/portfolio logging)
+    if (!m_tickByTickLogged.value(reqId, false)) {
+        LOG_DEBUG(QString("tickByTickBidAsk [reqId=%1]: bid=%2, ask=%3 - first tick received, further ticks will not be logged").arg(reqId).arg(bidPrice).arg(askPrice));
+        m_tickByTickLogged[reqId] = true;
+    }
     emit tickByTickReceived(reqId, 0, bidPrice, askPrice);
 }
 
@@ -165,7 +176,7 @@ void IBKRWrapper::openOrder(OrderId orderId, const Contract& contract, const Ord
     double quantity = 0;
     if (order.totalQuantity != UNSET_DECIMAL) {
         quantity = DecimalFunctions::decimalToDouble(order.totalQuantity);
-        LOG_INFO(QString("Open order: id=%1, %2 %3 x%4 @ %5, type=%6, status=%7")
+        LOG_DEBUG(QString("Open order: id=%1, %2 %3 x%4 @ %5, type=%6, status=%7")
             .arg(orderId)
             .arg(action)
             .arg(symbol)
@@ -203,7 +214,7 @@ void IBKRWrapper::completedOrder(const Contract& contract, const Order& order, c
         return;
     }
 
-    LOG_INFO(QString("Completed order: id=%1, %2 %3 x%4 @ %5, status=%6, permId=%7")
+    LOG_DEBUG(QString("Completed order: id=%1, %2 %3 x%4 @ %5, status=%6, permId=%7")
         .arg(order.orderId)
         .arg(action)
         .arg(symbol)

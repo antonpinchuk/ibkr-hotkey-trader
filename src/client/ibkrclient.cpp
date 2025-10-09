@@ -225,6 +225,9 @@ void IBKRClient::requestTickByTick(int tickerId, const QString& symbol)
 {
     if (!m_socket->isConnected()) return;
 
+    // Reset tick logging for this reqId (allow first tick to be logged again)
+    m_wrapper->resetTickByTickLogging(tickerId);
+
     Contract contract;
     contract.symbol = symbol.toStdString();
     contract.secType = "STK";
@@ -237,6 +240,10 @@ void IBKRClient::requestTickByTick(int tickerId, const QString& symbol)
 void IBKRClient::cancelTickByTick(int tickerId)
 {
     if (!m_socket->isConnected()) return;
+
+    // Reset tick logging for this reqId (in case we resubscribe later)
+    m_wrapper->resetTickByTickLogging(tickerId);
+
     m_socket->cancelTickByTickData(tickerId);
 }
 

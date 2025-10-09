@@ -242,6 +242,7 @@ void MainWindow::setupMenuBar()
     helpMenu->addSeparator();
 
     QAction *debugAction = helpMenu->addAction("Debug");
+    debugAction->setShortcut(QKeySequence("Ctrl+Alt+I"));
     connect(debugAction, &QAction::triggered, this, &MainWindow::onDebugLogs);
 }
 
@@ -578,6 +579,7 @@ void MainWindow::onSymbolSelected(const QString& symbol, const QString& exchange
         m_tickerList->setCurrentSymbol(symbol);
         m_chart->setSymbol(symbol);
         m_tradingManager->setSymbol(symbol);
+        m_tradingManager->resetTickLogging(tickerId); // Reset tick logging when switching back to symbol
         m_orderHistory->setCurrentSymbol(symbol);
 
         // Update TradingManager with exchange info
@@ -987,6 +989,7 @@ void MainWindow::onTickByTickUpdated(int reqId, double price, double bidPrice, d
         m_tickerList->setCurrentSymbol(symbol);
         m_chart->setSymbol(symbol);
         m_tradingManager->setSymbol(symbol);
+        m_tradingManager->resetTickLogging(reqId); // Reset tick logging for new symbol
         m_orderHistory->setCurrentSymbol(symbol);
 
         // Update TradingManager with exchange info

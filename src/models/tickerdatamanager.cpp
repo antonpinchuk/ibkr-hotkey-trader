@@ -26,7 +26,7 @@ void TickerDataManager::addTicker(const QString& symbol)
         return;
     }
 
-    LOG_DEBUG(QString("TickerDataManager: Adding ticker %1").arg(symbol));
+    LOG_INFO(QString("TickerDataManager: Adding ticker %1").arg(symbol));
 
     // Create new ticker data entry
     TickerData data;

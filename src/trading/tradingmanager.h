@@ -16,6 +16,7 @@ public:
 
     void setSymbol(const QString& symbol);
     void setSymbolExchange(const QString& symbol, const QString& exchange);
+    void resetTickLogging(int reqId); // Reset tick logging for new subscription
     QString currentSymbol() const { return m_currentSymbol; }
     QString currentExchange() const { return m_currentExchange; }
 
@@ -67,6 +68,9 @@ private:
     QMap<int, TradeOrder> m_orders;  // orderId -> TradeOrder
     int m_pendingBuyOrderId;
     int m_pendingSellOrderId;
+
+    // Logging tracking
+    QMap<int, bool> m_tickByTickLogged; // Track which reqIds have logged at least one tick
 };
 
 #endif // TRADINGMANAGER_H

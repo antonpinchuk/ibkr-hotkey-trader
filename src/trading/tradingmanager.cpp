@@ -48,8 +48,13 @@ void TradingManager::setSymbolExchange(const QString& symbol, const QString& exc
 {
     if (m_currentSymbol == symbol) {
         m_currentExchange = exchange;
-        LOG_INFO(QString("Set exchange for %1: %2").arg(symbol).arg(exchange));
+        LOG_DEBUG(QString("Set exchange for %1: %2").arg(symbol).arg(exchange));
     }
+}
+
+void TradingManager::resetTickLogging(int reqId)
+{
+    m_tickByTickLogged.remove(reqId);
 }
 
 void TradingManager::openPosition(int percentage)
@@ -227,13 +232,22 @@ void TradingManager::onTickByTickUpdated(int reqId, double price, double bidPric
     m_bidPrice = bidPrice;
     m_askPrice = askPrice;
 
-    LOG_DEBUG(QString("TradingManager: Price update for reqId=%1, symbol=%2: price=%3, bid=%4, ask=%5")
-        .arg(reqId).arg(m_currentSymbol).arg(price).arg(bidPrice).arg(askPrice));
+    // Log only first successful tick for each reqId (similar to IBKRWrapper logging)
+    if (!m_tickByTickLogged.value(reqId, false)) {
+        LOG_DEBUG(QString("TradingManager: Price update for reqId=%1, symbol=%2: price=%3, bid=%4, ask=%5 - first tick received, further ticks will not be logged")
+            .arg(reqId).arg(m_currentSymbol).arg(price).arg(bidPrice).arg(askPrice));
+        m_tickByTickLogged[reqId] = true;
+    }
 }
 
 void TradingManager::onOrderConfirmed(int orderId, const QString& symbol, const QString& action, int quantity, double price, long long permId)
 {
-    LOG_INFO(QString("Order confirmed by TWS: orderId=%1, symbol=%2, action=%3, qty=%4, price=%5, permId=%6")
+    // Historical orders (orderId=0) are handled by MainWindow, skip them here
+    if (orderId == 0) {
+        return;
+    }
+
+    LOG_DEBUG(QString("Order confirmed by TWS: orderId=%1, symbol=%2, action=%3, qty=%4, price=%5, permId=%6")
         .arg(orderId).arg(symbol).arg(action).arg(quantity).arg(price, 0, 'f', 2).arg(permId));
 
     // Check if we have this order in pending orders
