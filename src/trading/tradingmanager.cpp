@@ -35,12 +35,6 @@ void TradingManager::setSymbol(const QString& symbol)
         return;
     }
 
-    // Check if there are open positions for current symbol
-    if (!m_currentSymbol.isEmpty() && getCurrentPosition() > 0) {
-        emit warning("Cannot switch symbols while holding a position. Close all positions first.");
-        return;
-    }
-
     m_currentSymbol = symbol;
 }
 

@@ -568,8 +568,6 @@ void MainWindow::onSymbolSearchRequested()
 
 void MainWindow::onSymbolSelected(const QString& symbol, const QString& exchange)
 {
-    // TODO: Check if there are open positions before switching
-
     // Store exchange for this symbol
     if (!exchange.isEmpty()) {
         m_symbolToExchange[symbol] = exchange;
