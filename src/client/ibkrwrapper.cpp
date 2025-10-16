@@ -6,6 +6,7 @@
 #include "OrderState.h"
 #include "Decimal.h"
 #include <QDebug>
+#include <QTimeZone>
 
 IBKRWrapper::IBKRWrapper(IBKRClient *client)
     : m_client(client)
@@ -142,8 +143,29 @@ void IBKRWrapper::tickByTickMidPoint(int reqId, time_t time, double midPoint)
 
 void IBKRWrapper::historicalData(TickerId reqId, const Bar& bar)
 {
-    // bar.time is a string in format "yyyymmdd  hh:mm:ss", convert to unix timestamp
-    long timestamp = std::stol(bar.time);
+    long timestamp = 0;
+    QString rawTime = QString::fromStdString(bar.time);
+    QDateTime dt;
+    if (!bar.time.empty() && std::all_of(bar.time.begin(), bar.time.end(), ::isdigit)) {
+        timestamp = std::stol(bar.time);
+        dt = QDateTime::fromSecsSinceEpoch(timestamp, QTimeZone("UTC"));
+    } else {
+        // Спробувати "yyyyMMdd hh:mm:ss"
+        dt = QDateTime::fromString(rawTime, "yyyyMMdd hh:mm:ss");
+        if (!dt.isValid()) {
+            // Спробувати "yyyyMMdd"
+            dt = QDateTime::fromString(rawTime, "yyyyMMdd");
+        }
+        dt.setTimeZone(QTimeZone("UTC"));
+        timestamp = dt.isValid() ? dt.toSecsSinceEpoch() : 0;
+    }
+    QDateTime nowUtc = QDateTime::currentDateTimeUtc();
+    qDebug() << "[historicalData] reqId:" << reqId
+             << "raw bar.time:" << rawTime
+             << "parsed QDateTime:" << dt.toString(Qt::ISODate)
+             << "isValid:" << dt.isValid()
+             << "timestamp:" << timestamp
+             << "current UTC:" << nowUtc.toString(Qt::ISODate);
     emit historicalDataReceived(reqId, timestamp, bar.open, bar.high, bar.low, bar.close, bar.volume);
 }
 
@@ -151,6 +173,12 @@ void IBKRWrapper::historicalDataEnd(int reqId, const std::string& startDateStr, 
 {
     qDebug() << "Historical data complete for reqId:" << reqId;
     emit historicalDataComplete(reqId);
+}
+
+void IBKRWrapper::realtimeBar(TickerId reqId, long time, double open, double high, double low, double close, Decimal volume, Decimal wap, int count)
+{
+    long volumeLong = DecimalFunctions::decimalToDouble(volume);
+    emit realTimeBarReceived(reqId, time, open, high, low, close, volumeLong);
 }
 
 void IBKRWrapper::orderStatus(OrderId orderId, const std::string& status, Decimal filled, Decimal remaining, double avgFillPrice, long long permId, int parentId, double lastFillPrice, int clientId, const std::string& whyHeld, double mktCapPrice)

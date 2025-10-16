@@ -91,6 +91,19 @@ void UIState::createTables()
     if (!query.exec(createTableWidthsTable)) {
         qWarning() << "Failed to create table_column_widths table:" << query.lastError().text();
     }
+
+    // Chart zoom state table (per timeframe)
+    QString createChartZoomTable = R"(
+        CREATE TABLE IF NOT EXISTS chart_zoom (
+            timeframe TEXT PRIMARY KEY,
+            lower REAL,
+            upper REAL
+        )
+    )";
+
+    if (!query.exec(createChartZoomTable)) {
+        qWarning() << "Failed to create chart_zoom table:" << query.lastError().text();
+    }
 }
 
 void UIState::saveWindowGeometry(const QRect& geometry, bool isMaximized, const QString& screenName)
@@ -241,4 +254,43 @@ QList<int> UIState::restoreTableColumnWidths(const QString& tableName)
 
     // Return empty list if not found
     return QList<int>();
+}
+
+void UIState::saveChartZoom(const QString& timeframe, double lower, double upper)
+{
+    QSqlQuery query(m_db);
+
+    // Delete existing record
+    query.prepare("DELETE FROM chart_zoom WHERE timeframe = :timeframe");
+    query.bindValue(":timeframe", timeframe);
+    query.exec();
+
+    // Insert new record
+    query.prepare(R"(
+        INSERT INTO chart_zoom (timeframe, lower, upper)
+        VALUES (:timeframe, :lower, :upper)
+    )");
+
+    query.bindValue(":timeframe", timeframe);
+    query.bindValue(":lower", lower);
+    query.bindValue(":upper", upper);
+
+    if (!query.exec()) {
+        qWarning() << "Failed to save chart zoom:" << query.lastError().text();
+    }
+}
+
+bool UIState::restoreChartZoom(const QString& timeframe, double& lower, double& upper)
+{
+    QSqlQuery query(m_db);
+    query.prepare("SELECT lower, upper FROM chart_zoom WHERE timeframe = :timeframe");
+    query.bindValue(":timeframe", timeframe);
+
+    if (query.exec() && query.next()) {
+        lower = query.value(0).toDouble();
+        upper = query.value(1).toDouble();
+        return true;
+    }
+
+    return false;
 }

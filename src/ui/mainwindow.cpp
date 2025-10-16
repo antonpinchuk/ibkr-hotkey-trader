@@ -359,6 +359,7 @@ void MainWindow::setupPanels()
 {
     m_tickerList = new TickerListWidget(this);
     m_chart = new ChartWidget(this);
+    m_chart->setTickerDataManager(m_tickerDataManager);
     m_orderHistory = new OrderHistoryWidget(this);
 
     // Bottom-right splitter: chart | order history (horizontal split)
@@ -448,6 +449,13 @@ void MainWindow::setupConnections()
 
     // Price updates (use marketDataUpdated for free data)
     connect(m_ibkrClient, &IBKRClient::marketDataUpdated, this, &MainWindow::onTickByTickUpdated);
+
+    // Chart updates from TickerDataManager (dynamic candle and bars)
+    connect(m_tickerDataManager, &TickerDataManager::currentBarUpdated, this, [this](const QString& symbol, const CandleBar& bar) {
+        if (symbol == m_currentSymbol) {
+            m_chart->updateCurrentBar(bar);
+        }
+    });
 
     // Trading Manager -> Order History
     connect(m_tradingManager, &TradingManager::orderPlaced, m_orderHistory, &OrderHistoryWidget::addOrder);
@@ -575,6 +583,7 @@ void MainWindow::onSymbolSelected(const QString& symbol, const QString& exchange
         tickerId = m_symbolToTickerId[symbol];
 
         m_currentSymbol = symbol;
+        m_tickerDataManager->setCurrentSymbol(symbol);  // Track current symbol for background loading
         m_tickerList->setTickerLabel(symbol);
         m_tickerList->setCurrentSymbol(symbol);
         m_chart->setSymbol(symbol);
@@ -976,14 +985,12 @@ void MainWindow::onTickByTickUpdated(int reqId, double price, double bidPrice, d
 
     // Check if this is first successful data for pending symbol
     if (symbol == m_pendingSymbol) {
-        // Data confirmed! Cancel old market data and switch to new symbol
-        if (!m_previousSymbol.isEmpty() && m_symbolToTickerId.contains(m_previousSymbol)) {
-            int oldTickerId = m_symbolToTickerId[m_previousSymbol];
-            m_ibkrClient->cancelMarketData(oldTickerId);
-        }
+        // Data confirmed! Switch to new symbol
+        // NOTE: Keep old market data active - allows fast switching between multiple tickers
 
         // Add to UI and make current
         m_currentSymbol = symbol;
+        m_tickerDataManager->setCurrentSymbol(symbol);  // Track current symbol for background loading
         m_tickerList->setTickerLabel(symbol);
         m_tickerList->addSymbol(symbol);
         m_tickerList->setCurrentSymbol(symbol);
@@ -1021,15 +1028,20 @@ void MainWindow::onTickByTickUpdated(int reqId, double price, double bidPrice, d
     // Store the current price
     m_lastPrices[symbol] = displayPrice;
 
-    // Update current bar in TickerDataManager
-    m_tickerDataManager->updateCurrentBar(symbol, displayPrice);
-
     // Update OrderHistoryWidget with current price for PnL calculation
     m_orderHistory->updateCurrentPrice(symbol, displayPrice);
 
+    // Update price lines if this is the current symbol
+    if (symbol == m_currentSymbol) {
+        double mid = (bidPrice > 0 && askPrice > 0) ? (bidPrice + askPrice) / 2.0 : displayPrice;
+        double bid = bidPrice > 0 ? bidPrice : displayPrice;
+        double ask = askPrice > 0 ? askPrice : displayPrice;
+        m_chart->updatePriceLines(bid, ask, mid);
+    }
+
     // Calculate change percent from 10 seconds ago (use bars from TickerDataManager)
     double changePercent = 0.0;
-    const QVector<CandleBar>* bars = m_tickerDataManager->getBars(symbol);
+    const QVector<CandleBar>* bars = m_tickerDataManager->getBars(symbol, m_tickerDataManager->currentTimeframe());
     if (bars && !bars->isEmpty()) {
         // Compare current price with price from 10 seconds ago (1 bar ago)
         if (bars->size() >= 2) {

@@ -25,6 +25,10 @@ public:
     void saveTableColumnWidths(const QString& tableName, const QList<int>& widths);
     QList<int> restoreTableColumnWidths(const QString& tableName);
 
+    // Chart zoom state (per timeframe)
+    void saveChartZoom(const QString& timeframe, double lower, double upper);
+    bool restoreChartZoom(const QString& timeframe, double& lower, double& upper);
+
 private:
     explicit UIState(QObject *parent = nullptr);
     ~UIState();

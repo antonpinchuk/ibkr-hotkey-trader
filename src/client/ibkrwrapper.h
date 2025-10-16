@@ -82,8 +82,8 @@ public:
     void scannerData(int reqId, int rank, const ContractDetails& contractDetails, const std::string& distance, const std::string& benchmark, const std::string& projection, const std::string& legsStr) override {}
     void scannerDataEnd(int reqId) override {}
 
-    // Real Time Bars - Not used but must be implemented
-    void realtimeBar(TickerId reqId, long time, double open, double high, double low, double close, Decimal volume, Decimal wap, int count) override {}
+    // Real Time Bars
+    void realtimeBar(TickerId reqId, long time, double open, double high, double low, double close, Decimal volume, Decimal wap, int count) override;
 
     // Current Time - Not used but must be implemented
     void currentTime(long time) override {}
@@ -196,6 +196,7 @@ signals:
     void tickByTickReceived(int reqId, double price, double bidPrice, double askPrice);
     void marketDataReceived(int tickerId, double lastPrice, double bidPrice, double askPrice);
 
+    void realTimeBarReceived(int reqId, long time, double open, double high, double low, double close, long volume);
     void historicalDataReceived(int reqId, long time, double open, double high, double low, double close, long volume);
     void historicalDataComplete(int reqId);
 

@@ -9,7 +9,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Charts Network Sql)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Sql PrintSupport)
 find_package(Protobuf REQUIRED)
 
 # Try to find abseil-cpp, or use Homebrew path if not found
@@ -49,6 +49,29 @@ endif()
 
 message(STATUS "Using TWS API from: ${TWS_API_DIR}")
 
+# QCustomPlot
+set(QCUSTOMPLOT_DIR "${CMAKE_SOURCE_DIR}/external/qcustomplot")
+
+if(NOT EXISTS "${QCUSTOMPLOT_DIR}/qcustomplot.h" OR NOT EXISTS "${QCUSTOMPLOT_DIR}/qcustomplot.cpp")
+    message(FATAL_ERROR
+        "\n"
+        "═══════════════════════════════════════════════════════════════\n"
+        " QCustomPlot not found!\n"
+        "═══════════════════════════════════════════════════════════════\n"
+        "\n"
+        " Please run the download script:\n"
+        "   ./download_qcustomplot.sh\n"
+        "\n"
+        " Or manually download from:\n"
+        "   https://www.qcustomplot.com/\n"
+        "\n"
+        " Extract qcustomplot.h and qcustomplot.cpp to: ${QCUSTOMPLOT_DIR}\n"
+        "═══════════════════════════════════════════════════════════════\n"
+    )
+endif()
+
+message(STATUS "Using QCustomPlot from: ${QCUSTOMPLOT_DIR}")
+
 # Generate protobuf files from TWS API proto definitions
 file(GLOB TWS_PROTO_FILES "${TWS_API_DIR}/source/proto/*.proto")
 set(PROTO_OUTPUT_DIR "${CMAKE_BINARY_DIR}/generated")
@@ -71,6 +94,7 @@ endforeach()
 include_directories(
     ${CMAKE_SOURCE_DIR}/src
     ${TWS_API_DIR}/source/cppclient/client
+    ${QCUSTOMPLOT_DIR}
     ${PROTO_OUTPUT_DIR}
     ${Protobuf_INCLUDE_DIRS}
 )
@@ -79,6 +103,8 @@ include_directories(
 set(SOURCES
     src/main.cpp
     src/bid_stub.cpp
+    # QCustomPlot
+    ${QCUSTOMPLOT_DIR}/qcustomplot.cpp
     # UI
     src/ui/mainwindow.cpp
     src/ui/mainwindow.h
@@ -142,7 +168,7 @@ if(absl_FOUND)
         Qt6::Core
         Qt6::Gui
         Qt6::Widgets
-        Qt6::Charts
+        Qt6::PrintSupport
         Qt6::Network
         Qt6::Sql
         ${Protobuf_LIBRARIES}
@@ -157,7 +183,7 @@ else()
         Qt6::Core
         Qt6::Gui
         Qt6::Widgets
-        Qt6::Charts
+        Qt6::PrintSupport
         Qt6::Network
         Qt6::Sql
         ${Protobuf_LIBRARIES}

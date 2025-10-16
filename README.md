@@ -7,10 +7,11 @@ A reactive hotkey trading application for **Interactive Brokers**, enabling rapi
 ## Features
 
 - **Rapid Trading**: Execute buy/sell orders instantly using keyboard shortcuts
-- **Real-time Charts**: 10-second candlestick charts with live price updates
-- **Position Management**: Track open positions and pending orders in real-time
+- **Real-time Charts**: Multi-timeframe candlestick charts (5s to 1M) with live price updates, auto-scaling, and horizontal zoom persistence
+- **Position Management**: Track open positions and pending orders in real-time with automatic deduplication
 - **Risk Controls**: Budget limits and automatic order management
 - **Session Statistics**: Track daily P&L, win rate, and trade history
+- **Multiple Tickers**: Switch between symbols with independent chart states and market data subscriptions
 
 ## Requirements
 
@@ -72,13 +73,14 @@ git clone https://github.com/kinect-pro/ibkr-hotkey-trader.git
 cd ibkr-hotkey-trader
 ```
 
-### 2. Download TWS API (One-Time Setup)
+### 2. Download dependencies (One-Time Setup)
 
 The app requires the Interactive Brokers TWS API C++ client library (not included in this repository).
 
 **Automatic Setup (Recommended):**
 ```bash
 ./download_tws_api.sh
+./download_qcustomplot.sh
 ```
 
 This script will:
@@ -163,13 +165,27 @@ The application will attempt to connect to TWS automatically.
 - `Cmd+Q`: Quit application
 
 ### Trading Workflow
-1. Press `Cmd+K` to search for a symbol (e.g., "AAPL", "TSLA")
-2. Use arrow keys to select, press Enter
-3. The chart will load with historical and real-time data
-4. Press `Cmd+O` or `Cmd+P` to enter a position
-5. Monitor the chart and order panel (right side)
-6. Use `Cmd+Z/X/C/V` to close position (partial or full)
-7. All trades for the day are tracked in the history panel
+1. **Search Symbol**: Press `Cmd+K` to search for a symbol (e.g., "AAPL", "TSLA")
+   - Use arrow keys to select, press Enter
+   - Market data subscription required for the symbol
+2. **Analyze Chart**: View real-time candlestick chart
+   - Select timeframe (5s to 1M) from dropdown
+   - Use mousewheel to zoom horizontally
+   - Drag chart to scroll through history
+   - Toggle Auto-scale checkbox for automatic vertical scaling
+3. **Enter Position**: Press `Cmd+O` (100%) or `Cmd+P` (50%) to open position
+   - Orders execute at current market price (mid of bid/ask)
+   - Confirmation toast appears on success/error
+4. **Monitor Position**: Track in real-time
+   - Price lines show current bid/ask/mid
+   - Order history panel shows position details and P&L
+   - Chart auto-scrolls as new candles form (when auto-scale enabled)
+5. **Close Position**: Use `Cmd+Z/X/C/V` to close position (full or partial)
+   - All trades for the day are tracked in the history panel
+   - Statistics updated in real-time (win rate, realized P&L)
+6. **Switch Symbols**: Click another ticker in the left panel
+   - Previous symbol's market data stays active for quick switching
+   - Chart zoom and timeframe state persisted per timeframe
 
 To start over use `File → Reset Session` or restart the app.
 
@@ -183,12 +199,22 @@ To start over use `File → Reset Session` or restart the app.
 ## User Interface
 
 ### Main Window Layout
-- **Top Toolbar**: Current ticker, quick action buttons, settings
+- **Top Toolbar**: Trading action buttons (Open 100%/50%, Add 5%-50%, Close 25%-100%, Cancel Orders)
 - **Left Panel**: Today's ticker list with live prices and % change
-  - Click ticker to load chart (switch symbol locked when you have open position)
-  - Right-click ticker to move it to top
-- **Center**: Real-time 10-second candlestick chart
-- **Right Panel**: Order history and session statistics
+  - Click ticker to load chart (symbol switching locked when you have open position)
+  - Live price updates with color-coded % change indicators
+- **Center Panel**: Multi-timeframe candlestick chart
+  - Timeframes: 5s, 10s, 30s, 1m, 5m, 15m, 30m, 1h, 1d, 1w, 1m
+  - Auto-scale checkbox (vertical auto-scaling to visible candles)
+  - Horizontal zoom/scroll (mousewheel/drag) with state persistence per timeframe
+  - Real-time price lines (bid/ask/mid) updated from tick data
+  - Auto-scroll on new candles (when auto-scale enabled)
+  - Session backgrounds (pre-market, after-hours) with color coding
+- **Right Panel**: Order history and position statistics
+  - Real-time P&L updates
+  - Trade history with filtering and sorting
+  - Position tracking with average cost and unrealized P&L
+  - Session statistics (win rate, total trades, realized P&L)
 
 ## Troubleshooting
 
@@ -215,40 +241,93 @@ To start over use `File → Reset Session` or restart the app.
 ```
 ibkr-hotkey-trader/
 ├── src/
-│   ├── main.cpp                          # Application entry
-│   ├── client/
-│   │   ├── ibkrclient.h/cpp              # TWS API client
-│   │   └── ibkrwrapper.h/cpp             # TWS API callbacks
-│   ├── ui/
-│   │   ├── mainwindow.h/cpp              # Main window UI
-│   │   └── toastnotification.h/cpp       # Toast notification widget
-│   ├── widgets/
-│   │   ├── chartwidget.h/cpp             # Chart component
-│   │   ├── orderhistorywidget.h/cpp      # Order history panel
-│   │   ├── tickerlistwidget.h/cpp        # Ticker list panel
-│   │   └── tickeritemdelegate.h/cpp      # Ticker list item delegate
-│   ├── dialogs/
-│   │   ├── settingsdialog.h/cpp          # Settings dialog
-│   │   ├── symbolsearchdialog.h/cpp      # Symbol search dialog
-│   │   └── debuglogdialog.h/cpp          # Debug log viewer
-│   ├── trading/
-│   │   └── tradingmanager.h/cpp          # Trading logic
-│   ├── models/
-│   │   ├── order.h/cpp                   # Order data model
-│   │   ├── settings.h/cpp                # Settings data model
-│   │   ├── uistate.h/cpp                 # UI state model
-│   │   └── tickerdatamanager.h/cpp       # Ticker data manager
-│   ├── utils/
-│   │   └── logger.h/cpp                  # Logging system
-│   └── bid_stub.cpp                      # Bid generation stub (Apple Silicon)
+│   ├── main.cpp                          # Application entry point
+│   │
+│   ├── client/                           # TWS API Integration
+│   │   ├── ibkrclient.h/cpp              # TWS API client wrapper (connection, requests)
+│   │   └── ibkrwrapper.h/cpp             # TWS API callback handlers (market data, orders, positions)
+│   │
+│   ├── ui/                               # Main User Interface
+│   │   ├── mainwindow.h/cpp              # Main window UI (layout, panels, connections)
+│   │   └── toastnotification.h/cpp       # Toast notification widget (success/error/warning)
+│   │
+│   ├── widgets/                          # UI Components
+│   │   ├── chartwidget.h/cpp             # Real-time candlestick chart (QCustomPlot, multi-timeframe, auto-scale)
+│   │   ├── orderhistorywidget.h/cpp      # Order history panel (trades, positions, P&L, statistics)
+│   │   ├── tickerlistwidget.h/cpp        # Ticker list panel (symbols, prices, % change)
+│   │   └── tickeritemdelegate.h/cpp      # Custom ticker item renderer (color coding, styling)
+│   │
+│   ├── dialogs/                          # Dialog Windows
+│   │   ├── settingsdialog.h/cpp          # Settings dialog (connection, trading, account)
+│   │   ├── symbolsearchdialog.h/cpp      # Symbol search dialog (autocomplete, exchange info)
+│   │   └── debuglogdialog.h/cpp          # Debug log viewer (filtered log messages)
+│   │
+│   ├── trading/                          # Trading Logic
+│   │   └── tradingmanager.h/cpp          # Trading manager (order placement, position tracking, risk control)
+│   │
+│   ├── models/                           # Data Models & State
+│   │   ├── order.h/cpp                   # Order data model (buy/sell orders, status, P&L)
+│   │   ├── settings.h/cpp                # Application settings (connection, budget, account)
+│   │   ├── uistate.h/cpp                 # UI state persistence (window geometry, splitters, chart zoom)
+│   │   └── tickerdatamanager.h/cpp       # Ticker data manager (candle caching, real-time bars, aggregation)
+│   │
+│   ├── utils/                            # Utilities
+│   │   └── logger.h/cpp                  # Logging system (file logging with log levels)
+│   │
+│   └── bid_stub.cpp                      # Bid generation stub (Apple Silicon compatibility fix)
+│
 ├── external/
-│   └── twsapi/                           # TWS API (download separately)
-├── doc/
-│   ├── REQUIREMENTS.md                   # Project requirements
-│   └── TODO.md                           # Development progress
-├── CMakeLists.txt
-└── README.md
+│   └── twsapi/                           # TWS API C++ library (download separately)
+│
+├── doc/                                  # Documentation
+│   ├── REQUIREMENTS.md                   # Requirements and user stories
+│   ├── TODO.md                           # Development roadmap and tasks
+│   └── IMPLEMENTATION.md                 # Technical implementation details
+│
+├── CMakeLists.txt                        # CMake build configuration
+├── download_tws_api.sh                   # TWS API download script
+├── download_qcustomplot.sh               # Chart dependency download
+└── README.md                             # This file
 ```
+
+### Component Details
+
+#### Client Layer (`src/client/`)
+- **ibkrclient**: Manages TWS connection, sends requests (market data, orders, historical data)
+- **ibkrwrapper**: Receives TWS callbacks, emits Qt signals for UI updates
+
+#### UI Layer (`src/ui/`, `src/widgets/`, `src/dialogs/`)
+- **mainwindow**: Main application window, coordinates all panels and shortcuts
+- **chartwidget**: Real-time candlestick charts with:
+  - Multiple timeframes (5s, 10s, 30s, 1m, 5m, 15m, 30m, 1h, 1d, 1w, 1m)
+  - Horizontal zoom/scroll (vertical auto-scales to visible candles)
+  - Zoom state persistence per timeframe (saved to SQLite)
+  - Price lines (bid/ask/mid) updated from tick data
+  - Auto-scroll on new candles (when auto-scale enabled)
+- **orderhistorywidget**: Displays order history with filtering, sorting, statistics
+- **tickerlistwidget**: Shows active tickers with live price updates
+- **symbolsearchdialog**: Symbol search with autocomplete
+
+#### Trading Layer (`src/trading/`)
+- **tradingmanager**: Handles all trading operations:
+  - Order placement (market orders at current price)
+  - Position tracking and updates
+  - Budget validation and risk controls
+  - Order deduplication (prevents duplicate entries from multiple TWS callbacks)
+
+#### Data Layer (`src/models/`)
+- **tickerdatamanager**: Manages real-time and historical market data:
+  - Subscribes to TWS real-time 5s bars (`reqRealTimeBars`)
+  - Subscribes to tick-by-tick data (`reqTickByTickData`)
+  - Aggregates 5s bars into larger timeframes (10s, 30s, 1m, 5m, etc.)
+  - Caches candle data in memory for all symbols
+  - Emits signals for chart updates (completed bars and dynamic candles)
+- **order**: Order data structure with status tracking
+- **settings**: Application settings (persisted to SQLite)
+- **uistate**: UI state (window geometry, splitter positions, chart zoom)
+
+#### Utils Layer (`src/utils/`)
+- **logger**: File-based logging with DEBUG/INFO/WARNING/ERROR levels
 
 ### IDE Setup
 
@@ -366,10 +445,6 @@ make
 ```
 
 ### Project Dependencies
-- **TWS API**: Downloaded once to `external/twsapi/` (excluded from git via .gitignore)
-  - Use `./download_tws_api.sh` for automatic setup
-  - Or download manually from https://interactivebrokers.github.io/
-- **Application code**: Self-contained in `src/`
 - **User data**: Settings stored in local SQLite database (OS-specific app data folder)
 
 **Note**: The TWS API is not distributed with this repository per Interactive Brokers' distribution policy. It's a one-time ~10MB download.

@@ -65,6 +65,7 @@ void IBKRClient::setupSignals()
     QObject::connect(m_wrapper.get(), &IBKRWrapper::tickPriceReceived, this, &IBKRClient::tickPriceUpdated);
     QObject::connect(m_wrapper.get(), &IBKRWrapper::tickByTickReceived, this, &IBKRClient::tickByTickUpdated);
     QObject::connect(m_wrapper.get(), &IBKRWrapper::marketDataReceived, this, &IBKRClient::marketDataUpdated);
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::realTimeBarReceived, this, &IBKRClient::realTimeBarReceived);
     QObject::connect(m_wrapper.get(), &IBKRWrapper::historicalDataReceived, this, &IBKRClient::historicalBarReceived);
     QObject::connect(m_wrapper.get(), &IBKRWrapper::historicalDataComplete, this, &IBKRClient::historicalDataFinished);
     QObject::connect(m_wrapper.get(), &IBKRWrapper::orderOpened, this, &IBKRClient::orderConfirmed);
@@ -247,6 +248,28 @@ void IBKRClient::cancelTickByTick(int tickerId)
     m_socket->cancelTickByTickData(tickerId);
 }
 
+void IBKRClient::requestRealTimeBars(int tickerId, const QString& symbol)
+{
+    if (!m_socket->isConnected()) return;
+
+    Contract contract;
+    contract.symbol = symbol.toStdString();
+    contract.secType = "STK";
+    contract.exchange = "SMART";
+    contract.currency = "USD";
+
+    // barSize=5 (only valid value for real-time bars)
+    // whatToShow="TRADES" for last price, "MIDPOINT" for bid/ask midpoint, "BID" or "ASK"
+    // useRTH=false to include pre/post market data
+    m_socket->reqRealTimeBars(tickerId, contract, 5, "TRADES", false, TagValueListSPtr());
+}
+
+void IBKRClient::cancelRealTimeBars(int tickerId)
+{
+    if (!m_socket->isConnected()) return;
+    m_socket->cancelRealTimeBars(tickerId);
+}
+
 void IBKRClient::requestHistoricalData(int reqId, const QString& symbol, const QString& endDateTime, const QString& duration, const QString& barSize)
 {
     if (!m_socket->isConnected()) return;
@@ -257,8 +280,10 @@ void IBKRClient::requestHistoricalData(int reqId, const QString& symbol, const Q
     contract.exchange = "SMART";
     contract.currency = "USD";
 
+    // useRTH=0 to include pre/post market data (extended trading hours)
+    // formatDate=2 for unix timestamp format (returned as a string)
     m_socket->reqHistoricalData(reqId, contract, endDateTime.toStdString(), duration.toStdString(),
-                                 barSize.toStdString(), "TRADES", 1, 1, false, TagValueListSPtr());
+                                 barSize.toStdString(), "TRADES", 0, 2, false, TagValueListSPtr());
 }
 
 int IBKRClient::placeOrder(const QString& symbol, const QString& action, int quantity, double limitPrice,

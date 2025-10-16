@@ -1,6 +1,9 @@
 # Technical Implementation Details
 
-## Order Tracking & Deduplication
+## Order History 
+
+### Tracking & Deduplication
+
 **Проблема:** TWS API може надсилати кілька callbacks для одного ордера (`openOrder`, `completedOrder`, `orderStatus`), що призводить до дублікатів в UI.
 
 **Рішення - Order Matching Logic:**
@@ -41,3 +44,53 @@
     - **Конфлікт mutex:** Обидва потоки можуть одночасно намагатися залочити `m_csMsgQueue` (внутрішній mutex TWS API)
     - **Рішення:** Обгортаємо `processMsgs()` в try-catch для `std::system_error` - при конфлікті просто пропускаємо цикл
     - **Важливо:** НЕ використовувати додатковий QMutex - це створює deadlock!
+
+
+## Candle Chart
+
+### Architecture
+
+The chart uses a hybrid approach for real-time candle updates:
+
+1. **Completed 5s bars** (from TWS API `reqRealTimeBars`):
+   - Accurate OHLCV data from TWS
+   - Stored in cache (`m_tickerData`)
+   - Aggregated into larger timeframes (10s, 30s, 1m, 5m, etc.)
+   - Updates chart when received
+
+2. **Current dynamic candle** (from `reqTickByTickData`):
+   - Built from live ticks (bid/ask midpoint)
+   - **NOT stored in cache** (display only)
+   - Replaced by accurate bar from `reqRealTimeBars` when completed
+   - Handles async delays: starts new candle from previous close if no ticks
+
+3. **Candle boundary timer** (aligned to 5s):
+   - Detects transition to new candle period
+   - If no ticks arrive, draws flat line from previous close
+   - Ensures smooth display during low activity
+
+### Data Flow
+
+```
+reqRealTimeBars (5s completed bars)
+    ↓
+TickerDataManager.onRealTimeBarReceived()
+    ↓
+Cache + Aggregation → barsUpdated() → ChartWidget
+
+
+reqTickByTickData (live ticks)
+    ↓
+TickerDataManager.onTickByTickUpdate()
+    ↓
+Build dynamic candle → currentBarUpdated() → ChartWidget
+    (NOT in cache!)
+```
+
+### Key Implementation Details
+
+- TWS API limitation: `reqRealTimeBars` only supports 5s bars
+- Larger timeframes built by aggregating 5s bars in memory
+- Price lines (bid/ask/mid) also use `reqTickByTickData`
+- Timer aligned to 5s boundaries for synchronization
+- Historical data loaded via `reqHistoricalData` for initial chart
