@@ -146,6 +146,8 @@ set(SOURCES
     # Utils
     src/utils/logger.cpp
     src/utils/logger.h
+    src/utils/globalhotkeymanager.cpp
+    src/utils/globalhotkeymanager.h
 )
 
 # TWS API source files
@@ -205,6 +207,12 @@ if(APPLE)
         MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
         MACOSX_BUNDLE_ICON_FILE icon.icns
     )
+
+    # Link Carbon framework for global hotkeys
+    find_library(CARBON_FRAMEWORK Carbon)
+    if(CARBON_FRAMEWORK)
+        target_link_libraries(${PROJECT_NAME} ${CARBON_FRAMEWORK})
+    endif()
 
     # Copy icon to bundle resources
     set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/icon.icns PROPERTIES

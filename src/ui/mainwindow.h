@@ -19,6 +19,7 @@ class SymbolSearchDialog;
 class ToastNotification;
 class DebugLogDialog;
 class TickerDataManager;
+class GlobalHotkeyManager;
 
 class MainWindow : public QMainWindow
 {
@@ -129,6 +130,7 @@ private:
     IBKRClient *m_ibkrClient;
     TradingManager *m_tradingManager;
     TickerDataManager *m_tickerDataManager;
+    GlobalHotkeyManager *m_globalHotkeyManager;
 
     QString m_currentSymbol;
     QString m_previousSymbol;  // Track previous symbol for rollback on error

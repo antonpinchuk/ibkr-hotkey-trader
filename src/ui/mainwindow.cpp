@@ -12,6 +12,7 @@
 #include "models/uistate.h"
 #include "models/tickerdatamanager.h"
 #include "utils/logger.h"
+#include "utils/globalhotkeymanager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QMenuBar>
@@ -52,6 +53,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_tickerDataManager = new TickerDataManager(m_ibkrClient, this);
     m_settingsDialog = new SettingsDialog(this);
     m_symbolSearch = new SymbolSearchDialog(m_ibkrClient, this);
+    m_globalHotkeyManager = new GlobalHotkeyManager(this);
 
     // Setup 10-second timer for inactive ticker updates
     m_inactiveTickerTimer = new QTimer(this);
@@ -63,6 +65,9 @@ MainWindow::MainWindow(QWidget *parent)
     setupConnections();
     restoreUIState();
 
+    // Register global hotkeys (macOS only)
+    m_globalHotkeyManager->registerHotkeys();
+
     // Apply saved settings to order history
     Settings& settings = Settings::instance();
     m_orderHistory->setShowCancelledAndZeroPositions(settings.showCancelledOrders());
@@ -73,6 +78,8 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
+    // Unregister global hotkeys
+    m_globalHotkeyManager->unregisterHotkeys();
 }
 
 void MainWindow::setupUI()
@@ -127,80 +134,80 @@ void MainWindow::setupMenuBar()
 
     // Opening positions
     QAction *open100Action = ordersMenu->addAction("Open 100%");
-    open100Action->setShortcut(QKeySequence("Ctrl+O"));
+    open100Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+O"));
     connect(open100Action, &QAction::triggered, this, &MainWindow::onOpen100);
 
     QAction *open50Action = ordersMenu->addAction("Open 50%");
-    open50Action->setShortcut(QKeySequence("Ctrl+P"));
+    open50Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+P"));
     connect(open50Action, &QAction::triggered, this, &MainWindow::onOpen50);
 
     ordersMenu->addSeparator();
 
     // Adding to position
     QAction *add5Action = ordersMenu->addAction("Add 5%");
-    add5Action->setShortcut(QKeySequence("Ctrl+1"));
+    add5Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+1"));
     connect(add5Action, &QAction::triggered, this, &MainWindow::onAdd5);
 
     QAction *add10Action = ordersMenu->addAction("Add 10%");
-    add10Action->setShortcut(QKeySequence("Ctrl+2"));
+    add10Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+2"));
     connect(add10Action, &QAction::triggered, this, &MainWindow::onAdd10);
 
     QAction *add15Action = ordersMenu->addAction("Add 15%");
-    add15Action->setShortcut(QKeySequence("Ctrl+3"));
+    add15Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+3"));
     connect(add15Action, &QAction::triggered, this, &MainWindow::onAdd15);
 
     QAction *add20Action = ordersMenu->addAction("Add 20%");
-    add20Action->setShortcut(QKeySequence("Ctrl+4"));
+    add20Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+4"));
     connect(add20Action, &QAction::triggered, this, &MainWindow::onAdd20);
 
     QAction *add25Action = ordersMenu->addAction("Add 25%");
-    add25Action->setShortcut(QKeySequence("Ctrl+5"));
+    add25Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+5"));
     connect(add25Action, &QAction::triggered, this, &MainWindow::onAdd25);
 
     QAction *add30Action = ordersMenu->addAction("Add 30%");
-    add30Action->setShortcut(QKeySequence("Ctrl+6"));
+    add30Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+6"));
     connect(add30Action, &QAction::triggered, this, &MainWindow::onAdd30);
 
     QAction *add35Action = ordersMenu->addAction("Add 35%");
-    add35Action->setShortcut(QKeySequence("Ctrl+7"));
+    add35Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+7"));
     connect(add35Action, &QAction::triggered, this, &MainWindow::onAdd35);
 
     QAction *add40Action = ordersMenu->addAction("Add 40%");
-    add40Action->setShortcut(QKeySequence("Ctrl+8"));
+    add40Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+8"));
     connect(add40Action, &QAction::triggered, this, &MainWindow::onAdd40);
 
     QAction *add45Action = ordersMenu->addAction("Add 45%");
-    add45Action->setShortcut(QKeySequence("Ctrl+9"));
+    add45Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+9"));
     connect(add45Action, &QAction::triggered, this, &MainWindow::onAdd45);
 
     QAction *add50Action = ordersMenu->addAction("Add 50%");
-    add50Action->setShortcut(QKeySequence("Ctrl+0"));
+    add50Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+0"));
     connect(add50Action, &QAction::triggered, this, &MainWindow::onAdd50);
 
     ordersMenu->addSeparator();
 
     // Cancel orders
     QAction *cancelAction = ordersMenu->addAction("Cancel All Orders");
-    cancelAction->setShortcut(QKeySequence("Esc"));
+    cancelAction->setShortcut(QKeySequence("Ctrl+Alt+Q"));
     connect(cancelAction, &QAction::triggered, this, &MainWindow::onCancelOrders);
 
     ordersMenu->addSeparator();
 
     // Closing positions
     QAction *close25Action = ordersMenu->addAction("Close 25%");
-    close25Action->setShortcut(QKeySequence("Ctrl+V"));
+    close25Action->setShortcut(QKeySequence("Ctrl+Alt+V"));
     connect(close25Action, &QAction::triggered, this, &MainWindow::onClose25);
 
     QAction *close50Action = ordersMenu->addAction("Close 50%");
-    close50Action->setShortcut(QKeySequence("Ctrl+C"));
+    close50Action->setShortcut(QKeySequence("Ctrl+Alt+C"));
     connect(close50Action, &QAction::triggered, this, &MainWindow::onClose50);
 
     QAction *close75Action = ordersMenu->addAction("Close 75%");
-    close75Action->setShortcut(QKeySequence("Ctrl+X"));
+    close75Action->setShortcut(QKeySequence("Ctrl+Alt+X"));
     connect(close75Action, &QAction::triggered, this, &MainWindow::onClose75);
 
     QAction *close100Action = ordersMenu->addAction("Close 100%");
-    close100Action->setShortcut(QKeySequence("Ctrl+Z"));
+    close100Action->setShortcut(QKeySequence("Ctrl+Alt+Z"));
     connect(close100Action, &QAction::triggered, this, &MainWindow::onClose100);
 
     // View menu
@@ -218,25 +225,26 @@ void MainWindow::setupMenuBar()
     connect(helpAction, &QAction::triggered, [this]() {
         QMessageBox::information(this, "Help",
             "<h3>Keyboard Shortcuts</h3>"
-            "<h4>Opening Positions (Buy)</h4>"
+            "<h4>Opening Positions (Buy) - Global Hotkeys</h4>"
             "<ul>"
-            "<li>Cmd+O: Buy 100% of budget</li>"
-            "<li>Cmd+P: Buy 50% of budget</li>"
-            "<li>Cmd+1-9: Add 5%-45% to position</li>"
-            "<li>Cmd+0: Add 50% to position</li>"
+            "<li>Shift+Ctrl+Option+O: Buy 100% of budget</li>"
+            "<li>Shift+Ctrl+Option+P: Buy 50% of budget</li>"
+            "<li>Shift+Ctrl+Option+1-9: Add 5%-45% to position</li>"
+            "<li>Shift+Ctrl+Option+0: Add 50% to position</li>"
             "</ul>"
-            "<h4>Closing Positions (Sell)</h4>"
+            "<h4>Closing Positions (Sell) - Global Hotkeys</h4>"
             "<ul>"
-            "<li>Cmd+Z: Sell 100% of position</li>"
-            "<li>Cmd+X: Sell 75% of position</li>"
-            "<li>Cmd+C: Sell 50% of position</li>"
-            "<li>Cmd+V: Sell 25% of position</li>"
+            "<li>Ctrl+Option+Z: Sell 100% of position</li>"
+            "<li>Ctrl+Option+X: Sell 75% of position</li>"
+            "<li>Ctrl+Option+C: Sell 50% of position</li>"
+            "<li>Ctrl+Option+V: Sell 25% of position</li>"
             "</ul>"
             "<h4>Other Controls</h4>"
             "<ul>"
             "<li>Cmd+K: Open symbol search</li>"
-            "<li>Esc: Cancel all pending orders</li>"
-            "</ul>");
+            "<li>Ctrl+Option+Q: Cancel all pending orders (Global)</li>"
+            "</ul>"
+            "<p><b>Note:</b> Trading hotkeys work globally from any application!</p>");
     });
 
     helpMenu->addSeparator();
@@ -471,6 +479,63 @@ void MainWindow::setupConnections()
         showToast(message, "error");
     });
 
+    // Global hotkey manager
+    connect(m_globalHotkeyManager, &GlobalHotkeyManager::hotkeyPressed, this, [this](GlobalHotkeyManager::HotkeyAction action) {
+        switch (action) {
+            case GlobalHotkeyManager::Open100:
+                onOpen100();
+                break;
+            case GlobalHotkeyManager::Open50:
+                onOpen50();
+                break;
+            case GlobalHotkeyManager::Add5:
+                onAdd5();
+                break;
+            case GlobalHotkeyManager::Add10:
+                onAdd10();
+                break;
+            case GlobalHotkeyManager::Add15:
+                onAdd15();
+                break;
+            case GlobalHotkeyManager::Add20:
+                onAdd20();
+                break;
+            case GlobalHotkeyManager::Add25:
+                onAdd25();
+                break;
+            case GlobalHotkeyManager::Add30:
+                onAdd30();
+                break;
+            case GlobalHotkeyManager::Add35:
+                onAdd35();
+                break;
+            case GlobalHotkeyManager::Add40:
+                onAdd40();
+                break;
+            case GlobalHotkeyManager::Add45:
+                onAdd45();
+                break;
+            case GlobalHotkeyManager::Add50:
+                onAdd50();
+                break;
+            case GlobalHotkeyManager::Close25:
+                onClose25();
+                break;
+            case GlobalHotkeyManager::Close50:
+                onClose50();
+                break;
+            case GlobalHotkeyManager::Close75:
+                onClose75();
+                break;
+            case GlobalHotkeyManager::Close100:
+                onClose100();
+                break;
+            case GlobalHotkeyManager::CancelOrders:
+                onCancelOrders();
+                break;
+        }
+    });
+
     // Error handling for market data subscription issues
     connect(m_ibkrClient, &IBKRClient::error, this, [this](int id, int code, const QString& message) {
         // Market data subscription errors: 10089, 10168, 354, 10197, 10167, 162
@@ -497,63 +562,13 @@ void MainWindow::setupConnections()
 
 void MainWindow::keyPressEvent(QKeyEvent *event)
 {
+    // Only handle non-trading hotkeys here (trading hotkeys are now global)
     if (event->modifiers() & Qt::ControlModifier) {
         switch (event->key()) {
             case Qt::Key_K:
                 onSymbolSearchRequested();
                 return;
-            case Qt::Key_O:
-                onOpen100();
-                return;
-            case Qt::Key_P:
-                onOpen50();
-                return;
-            case Qt::Key_1:
-                onAdd5();
-                return;
-            case Qt::Key_2:
-                onAdd10();
-                return;
-            case Qt::Key_3:
-                onAdd15();
-                return;
-            case Qt::Key_4:
-                onAdd20();
-                return;
-            case Qt::Key_5:
-                onAdd25();
-                return;
-            case Qt::Key_6:
-                onAdd30();
-                return;
-            case Qt::Key_7:
-                onAdd35();
-                return;
-            case Qt::Key_8:
-                onAdd40();
-                return;
-            case Qt::Key_9:
-                onAdd45();
-                return;
-            case Qt::Key_0:
-                onAdd50();
-                return;
-            case Qt::Key_Z:
-                onClose100();
-                return;
-            case Qt::Key_X:
-                onClose75();
-                return;
-            case Qt::Key_C:
-                onClose50();
-                return;
-            case Qt::Key_V:
-                onClose25();
-                return;
         }
-    } else if (event->key() == Qt::Key_Escape) {
-        onCancelOrders();
-        return;
     }
 
     QMainWindow::keyPressEvent(event);
