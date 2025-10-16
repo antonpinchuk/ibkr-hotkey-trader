@@ -16,7 +16,6 @@ TradingManager::TradingManager(IBKRClient *client, QObject *parent)
 {
     // Connect to IBKR client signals
     connect(m_client, &IBKRClient::tickByTickUpdated, this, &TradingManager::onTickByTickUpdated);
-    connect(m_client, &IBKRClient::marketDataUpdated, this, &TradingManager::onTickByTickUpdated);
     connect(m_client, &IBKRClient::orderConfirmed, this, &TradingManager::onOrderConfirmed);
     connect(m_client, &IBKRClient::orderStatusUpdated, this, &TradingManager::onOrderStatusUpdated);
     connect(m_client, &IBKRClient::error, this, &TradingManager::onError);
@@ -226,10 +225,10 @@ void TradingManager::onTickByTickUpdated(int reqId, double price, double bidPric
     m_bidPrice = bidPrice;
     m_askPrice = askPrice;
 
-    // Log only first successful tick for each reqId (similar to IBKRWrapper logging)
+    // Log only first successful tick for each reqId
     if (!m_tickByTickLogged.value(reqId, false)) {
-        LOG_DEBUG(QString("TradingManager: Price update for reqId=%1, symbol=%2: price=%3, bid=%4, ask=%5 - first tick received, further ticks will not be logged")
-            .arg(reqId).arg(m_currentSymbol).arg(price).arg(bidPrice).arg(askPrice));
+        LOG_DEBUG(QString("First tick received [reqId=%1, symbol=%2]: bid=%3, ask=%4, price=%5")
+            .arg(reqId).arg(m_currentSymbol).arg(bidPrice).arg(askPrice).arg(price));
         m_tickByTickLogged[reqId] = true;
     }
 }

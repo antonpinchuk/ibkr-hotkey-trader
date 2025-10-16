@@ -23,10 +23,20 @@ ChartWidget::ChartWidget(QWidget *parent)
     , m_currentTimeframe(Timeframe::SEC_10) // Default to 10s
     , m_dataManager(nullptr)
     , m_autoScale(true) // Auto-scale enabled by default
+    , m_lastBid(0.0)
+    , m_lastAsk(0.0)
+    , m_lastMid(0.0)
+    , m_priceLinesDirty(false)
 {
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(5);
+
+    // Setup debounce timer for replot (max 10 FPS for price lines)
+    m_replotTimer = new QTimer(this);
+    m_replotTimer->setSingleShot(true);
+    m_replotTimer->setInterval(100); // 100ms = 10 FPS
+    connect(m_replotTimer, &QTimer::timeout, this, &ChartWidget::scheduledReplot);
 
     // Controls at the top
     setupControls();
@@ -226,6 +236,25 @@ void ChartWidget::clearChart()
 {
     m_candlesticks->data()->clear();
 
+    // Hide price lines
+    if (m_bidLine) m_bidLine->setVisible(false);
+    if (m_askLine) m_askLine->setVisible(false);
+    if (m_midLine) m_midLine->setVisible(false);
+    if (m_bidLabel) m_bidLabel->setVisible(false);
+    if (m_askLabel) m_askLabel->setVisible(false);
+    if (m_midLabel) m_midLabel->setVisible(false);
+
+    // Remove session background rectangles
+    for (int i = m_customPlot->itemCount() - 1; i >= 0; --i) {
+        QCPAbstractItem* item = m_customPlot->item(i);
+        if (!item) continue;
+
+        QCPItemRect* rect = qobject_cast<QCPItemRect*>(item);
+        if (rect) {
+            m_customPlot->removeItem(rect);
+        }
+    }
+
     if (m_customPlot->plotLayout()->rowCount() > 1) {
         m_customPlot->plotLayout()->removeAt(0);
         m_customPlot->plotLayout()->simplify();
@@ -286,31 +315,16 @@ void ChartWidget::updatePriceLines(double bid, double ask, double mid)
         return;
     }
 
-    double xMin = m_customPlot->xAxis->range().lower;
-    double xMax = m_customPlot->xAxis->range().upper;
+    // Store the latest values for debounced update
+    m_lastBid = bid;
+    m_lastAsk = ask;
+    m_lastMid = mid;
+    m_priceLinesDirty = true;
 
-    m_bidLine->start->setCoords(xMin, bid);
-    m_bidLine->end->setCoords(xMax, bid);
-    m_bidLabel->position->setCoords(xMax, bid);
-    m_bidLabel->setText(QString("Bid: %1").arg(bid, 0, 'f', 2));
-    m_bidLine->setVisible(true);
-    m_bidLabel->setVisible(true);
-
-    m_askLine->start->setCoords(xMin, ask);
-    m_askLine->end->setCoords(xMax, ask);
-    m_askLabel->position->setCoords(xMax, ask);
-    m_askLabel->setText(QString("Ask: %1").arg(ask, 0, 'f', 2));
-    m_askLine->setVisible(true);
-    m_askLabel->setVisible(true);
-
-    m_midLine->start->setCoords(xMin, mid);
-    m_midLine->end->setCoords(xMax, mid);
-    m_midLabel->position->setCoords(xMax, mid);
-    m_midLabel->setText(QString("Mid: %1").arg(mid, 0, 'f', 2));
-    m_midLine->setVisible(true);
-    m_midLabel->setVisible(true);
-
-    m_customPlot->replot();
+    // Schedule a replot if not already scheduled (debouncing at 10 FPS)
+    if (!m_replotTimer->isActive()) {
+        m_replotTimer->start();
+    }
 }
 
 void ChartWidget::updateCurrentBar(const CandleBar& bar)
@@ -357,14 +371,22 @@ void ChartWidget::addSessionBackgrounds(const QVector<CandleBar>& bars)
         return;
     }
 
-    for (int i = m_customPlot->itemCount() - 1; i >= 0; --i) {
+    // Remove old session background rectangles (but not price lines)
+    QList<QCPItemRect*> rectsToRemove;
+    for (int i = 0; i < m_customPlot->itemCount(); ++i) {
         QCPAbstractItem* item = m_customPlot->item(i);
         if (!item) continue;
 
         QCPItemRect* rect = qobject_cast<QCPItemRect*>(item);
         if (rect) {
-            m_customPlot->removeItem(rect);
+            // Check if this is NOT a price line related rect (price lines are QCPItemLine, not rect)
+            rectsToRemove.append(rect);
         }
+    }
+
+    // Remove collected rectangles
+    for (QCPItemRect* rect : rectsToRemove) {
+        m_customPlot->removeItem(rect);
     }
 
     for (const CandleBar& bar : bars) {
@@ -491,4 +513,42 @@ void ChartWidget::restoreHorizontalRange()
     if (UIState::instance().restoreChartZoom(timeframeKey, lower, upper)) {
         m_customPlot->xAxis->setRange(lower, upper);
     }
+}
+
+void ChartWidget::scheduledReplot()
+{
+    if (!m_priceLinesDirty || !m_customPlot || !m_bidLine || !m_askLine || !m_midLine) {
+        return;
+    }
+
+    double xMin = m_customPlot->xAxis->range().lower;
+    double xMax = m_customPlot->xAxis->range().upper;
+
+    // Update bid line
+    m_bidLine->start->setCoords(xMin, m_lastBid);
+    m_bidLine->end->setCoords(xMax, m_lastBid);
+    m_bidLabel->position->setCoords(xMax, m_lastBid);
+    m_bidLabel->setText(QString("Bid: %1").arg(m_lastBid, 0, 'f', 2));
+    m_bidLine->setVisible(true);
+    m_bidLabel->setVisible(true);
+
+    // Update ask line
+    m_askLine->start->setCoords(xMin, m_lastAsk);
+    m_askLine->end->setCoords(xMax, m_lastAsk);
+    m_askLabel->position->setCoords(xMax, m_lastAsk);
+    m_askLabel->setText(QString("Ask: %1").arg(m_lastAsk, 0, 'f', 2));
+    m_askLine->setVisible(true);
+    m_askLabel->setVisible(true);
+
+    // Update mid line
+    m_midLine->start->setCoords(xMin, m_lastMid);
+    m_midLine->end->setCoords(xMax, m_lastMid);
+    m_midLabel->position->setCoords(xMax, m_lastMid);
+    m_midLabel->setText(QString("Mid: %1").arg(m_lastMid, 0, 'f', 2));
+    m_midLine->setVisible(true);
+    m_midLabel->setVisible(true);
+
+    // Replot once for all updates
+    m_customPlot->replot();
+    m_priceLinesDirty = false;
 }

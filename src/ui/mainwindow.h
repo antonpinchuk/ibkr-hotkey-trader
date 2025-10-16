@@ -37,6 +37,8 @@ protected:
 private slots:
     void onSymbolSearchRequested();
     void onSymbolSelected(const QString& symbol, const QString& exchange = QString());
+    void onSymbolMoveToTop(const QString& symbol);
+    void onSymbolDelete(const QString& symbol);
     void onSettingsClicked();
     void onResetSession();
     void onQuit();
@@ -67,12 +69,9 @@ private slots:
     void onToggleShowCancelledAndZeroPositions(bool checked);
     void onSplitterMoved();
 
-    // Price update slots
-    void onTickByTickUpdated(int reqId, double price, double bidPrice, double askPrice);
-    void updateInactiveTickers();
-
-    // Error handling
-    void onMarketDataError(int tickerId);
+    // Ticker activation
+    void onTickerActivated(const QString& symbol);
+    void onPriceUpdated(const QString& symbol, double price, double changePercent, double bid, double ask, double mid);
 
 private:
     void setupUI();
@@ -135,18 +134,6 @@ private:
     SystemTrayManager *m_systemTrayManager;
 
     QString m_currentSymbol;
-    QString m_previousSymbol;  // Track previous symbol for rollback on error
-    QString m_pendingSymbol;   // Symbol waiting for market data confirmation
-
-    // Price tracking
-    QTimer *m_inactiveTickerTimer;
-    QMap<QString, double> m_lastPrices;          // symbol -> last price
-    QMap<QString, double> m_tenSecondAgoPrices;  // symbol -> price 10 seconds ago
-
-    // Ticker ID management
-    int m_nextTickerId;
-    QMap<QString, int> m_symbolToTickerId;       // symbol -> tickerId
-    QMap<int, QString> m_tickerIdToSymbol;       // tickerId -> symbol
     QMap<QString, QString> m_symbolToExchange;   // symbol -> primaryExchange
 
     // Order sorting and unique IDs

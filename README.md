@@ -6,12 +6,14 @@ A reactive hotkey trading application for **Interactive Brokers**, enabling rapi
 
 ## Features
 
-- **Rapid Trading**: Execute buy/sell orders instantly using keyboard shortcuts
-- **Real-time Charts**: Multi-timeframe candlestick charts (5s to 1M) with live price updates, auto-scaling, and horizontal zoom persistence
-- **Position Management**: Track open positions and pending orders in real-time with automatic deduplication
-- **Risk Controls**: Budget limits and automatic order management
+- **Rapid Trading**: Execute buy/sell orders instantly using keyboard shortcuts (system-wide, works when app is not in focus)
+- **Limit Calculation**: Budget limit with automatic Qty calculation (from %) and limit based on live price update
+- **Multiple Tickers**: Switch between symbols; add/remove/reorder
+- **Portfolio/Orders**: Track open positions and today's orders in real-time
 - **Session Statistics**: Track daily P&L, win rate, and trade history
-- **Multiple Tickers**: Switch between symbols with independent chart states and market data subscriptions
+- **Real-time Charts**: Candlestick chart (5s to 1Y) with live price updates, auto-scaling, and horizontal zoom
+- **System Tray**: Current ticker (for visibility when app is not in focus), blinks on price feed loss
+- **Remote Control**: Add/remove/select tickers for TradingView browser plugin integration 
 
 ## Requirements
 
@@ -147,52 +149,59 @@ The application will attempt to connect to TWS automatically.
 
 ### Keyboard Shortcuts
 
-#### Opening Positions (Buy)
-- `Cmd+O` (⌘O): Buy 100% of budget
-- `Cmd+P` (⌘P): Buy 50% of budget
-- `Cmd+1-9`: Add 5%-45% to position (increments of 5%)
-- `Cmd+0`: Add 50% to position
+#### Global Hotkeys (work system-wide, macOS)
+- `Shift+Ctrl+Opt+O`: Buy 100% of budget
+- `Shift+Ctrl+Opt+P`: Buy 50% of budget
+- `Shift+Ctrl+Opt+1..0`: Add 5%-50% to position
+- `Ctrl+Opt+Z`: Sell 100% of position
+- `Ctrl+Opt+X`: Sell 75% of position
+- `Ctrl+Opt+C`: Sell 50% of position
+- `Ctrl+Opt+V`: Sell 25% of position
+- `Ctrl+Opt+Q`: Cancel all pending orders
 
-#### Closing Positions (Sell)
-- `Cmd+Z`: Sell 100% of position
-- `Cmd+X`: Sell 75% of position
-- `Cmd+C`: Sell 50% of position
-- `Cmd+V`: Sell 25% of position
-
-#### Other Controls
+#### Application Shortcuts
 - `Cmd+K`: Open symbol search
-- `Esc`: Cancel all pending orders for current ticker
+- `Cmd+,`: Settings
 - `Cmd+Q`: Quit application
+- `Cmd+Opt+I`: Debug log
 
 ### Trading Workflow
-1. **Search Symbol**: Press `Cmd+K` to search for a symbol (e.g., "AAPL", "TSLA")
-   - Use arrow keys to select, press Enter
-   - Market data subscription required for the symbol
-2. **Analyze Chart**: View real-time candlestick chart
-   - Select timeframe (5s to 1M) from dropdown
-   - Use mousewheel to zoom horizontally
-   - Drag chart to scroll through history
-   - Toggle Auto-scale checkbox for automatic vertical scaling
-3. **Enter Position**: Press `Cmd+O` (100%) or `Cmd+P` (50%) to open position
-   - Orders execute at current market price (mid of bid/ask)
-   - Confirmation toast appears on success/error
-4. **Monitor Position**: Track in real-time
-   - Price lines show current bid/ask/mid
-   - Order history panel shows position details and P&L
-   - Chart auto-scrolls as new candles form (when auto-scale enabled)
-5. **Close Position**: Use `Cmd+Z/X/C/V` to close position (full or partial)
-   - All trades for the day are tracked in the history panel
-   - Statistics updated in real-time (win rate, realized P&L)
+1. **Start** Open TWS and log in to your account first, then launch this app
+2. **Search Symbol**: Press `Cmd+K` to search for a symbol (e.g., "AAPL", "TSLA")
+    - Mind the stock name (some symbols can duplicate on different exchange's)
 6. **Switch Symbols**: Click another ticker in the left panel
-   - Previous symbol's market data stays active for quick switching
-   - Chart zoom and timeframe state persisted per timeframe
+    - Stops live updates for previous symbol and starts for current one
+    - Right-click ticker for context menu: Move to Top / Delete
+3. **Enter Position**: Press `Shift+Ctrl+Opt+O` (100% of your budget) or `Shift+Ctrl+Opt+P` (50%) to open position
+   - Orders execute at limit (pre/post market) or market price (based on order settings)
+   - Multiple click updates pending order based on live price (if price went upper than ask+10)
+   - Confirmation toast appears on success/error
+5. **Close Position**: Use `Ctrl+Opt+Z/X/C/V` to close position (full or partial)
+   - Qty is calculated based on remain position (not on budget)
+   - Multiple click updates pending order based on live price (if price went lower than bid-10)
+4. **Monitor Positions/Orders**: Track in real-time
+   - Select Current ticker or ALl
+   - Show/Hide cancelled orders and zero-positions
+   - Statistics updated in real-time (win rate, realized P&L)
+2. **Monitor Chart**: View real-time candlestick chart
+    - Price lines show current bid/ask/mid
+    - Select timeframe (5s to 1Y) from dropdown
+    - Use mousewheel to zoom horizontally
+    - Drag chart to scroll through history
+    - Toggle Auto-scale checkbox for automatic vertical scaling
+    - Chart zoom and candel size state persisted
 
 To start over use `File → Reset Session` or restart the app.
+
+#### TradingView Workflow
+1. Install and configure browser plugin
+2. Tickers will appear/switch automatically (based on plugin settings)
+3. Current ticker is always visible in MacOS menu bar (mind blinking)
+4. Use hotkeys to trade
 
 ### Safety Features
 - Cannot exceed 100% of budget (warning toast)
 - Budget validation against account balance
-- All positions must be closed before switching symbols
 - Automatic reconnection if TWS connection drops
 - Visual warnings for account balance issues
 
@@ -203,6 +212,7 @@ To start over use `File → Reset Session` or restart the app.
 - **Left Panel**: Today's ticker list with live prices and % change
   - Click ticker to load chart (symbol switching locked when you have open position)
   - Live price updates with color-coded % change indicators
+  - Right-click for context menu (Move to Top, Delete)
 - **Center Panel**: Multi-timeframe candlestick chart
   - Timeframes: 5s, 10s, 30s, 1m, 5m, 15m, 30m, 1h, 1d, 1w, 1m
   - Auto-scale checkbox (vertical auto-scaling to visible candles)
@@ -215,6 +225,7 @@ To start over use `File → Reset Session` or restart the app.
   - Trade history with filtering and sorting
   - Position tracking with average cost and unrealized P&L
   - Session statistics (win rate, total trades, realized P&L)
+- **System Tray** (macOS): Shows current ticker symbol, blinks when price feed stops updating
 
 ## Troubleshooting
 
@@ -272,7 +283,9 @@ ibkr-hotkey-trader/
 │   │   └── tickerdatamanager.h/cpp       # Ticker data manager (candle caching, real-time bars, aggregation)
 │   │
 │   ├── utils/                            # Utilities
-│   │   └── logger.h/cpp                  # Logging system (file logging with log levels)
+│   │   ├── logger.h/cpp                  # Logging system (file logging with log levels)
+│   │   ├── globalhotkeymanager.h/cpp     # Global hotkeys (macOS Carbon API, system-wide shortcuts)
+│   │   └── systemtraymanager.h/mm        # System tray icon (macOS status bar integration)
 │   │
 │   └── bid_stub.cpp                      # Bid generation stub (Apple Silicon compatibility fix)
 │

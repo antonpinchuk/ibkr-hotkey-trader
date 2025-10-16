@@ -2,6 +2,7 @@
 #include "widgets/tickeritemdelegate.h"
 #include <QVBoxLayout>
 #include <QMouseEvent>
+#include <QMenu>
 
 TickerListWidget::TickerListWidget(QWidget *parent)
     : QWidget(parent)
@@ -118,6 +119,42 @@ void TickerListWidget::clear()
     m_listWidget->clear();
 }
 
+void TickerListWidget::moveSymbolToTop(const QString& symbol)
+{
+    // Find the item with this symbol
+    for (int i = 0; i < m_listWidget->count(); ++i) {
+        QListWidgetItem *item = m_listWidget->item(i);
+        if (item->data(TickerItemDelegate::SymbolRole).toString() == symbol) {
+            // Only move if not already at top
+            if (i > 0) {
+                bool wasCurrent = (symbol == m_currentSymbol);
+
+                m_listWidget->blockSignals(true);
+                m_listWidget->takeItem(i);
+                m_listWidget->insertItem(0, item);
+
+                // If it was the current item, keep it selected at new position
+                if (wasCurrent) {
+                    m_listWidget->setCurrentItem(item);
+                }
+
+                m_listWidget->blockSignals(false);
+                m_listWidget->viewport()->update();
+            }
+            break;
+        }
+    }
+}
+
+QString TickerListWidget::getTopSymbol() const
+{
+    if (m_listWidget->count() > 0) {
+        QListWidgetItem *item = m_listWidget->item(0);
+        return item->data(TickerItemDelegate::SymbolRole).toString();
+    }
+    return QString();
+}
+
 bool TickerListWidget::eventFilter(QObject *obj, QEvent *event)
 {
     if (obj == m_tickerLabel && event->type() == QEvent::MouseButtonPress) {
@@ -131,23 +168,23 @@ bool TickerListWidget::eventFilter(QObject *obj, QEvent *event)
         if (mouseEvent->button() == Qt::RightButton) {
             QListWidgetItem *item = m_listWidget->itemAt(mouseEvent->pos());
             if (item) {
-                int row = m_listWidget->row(item);
-                if (row > 0) {
-                    QString symbol = item->data(TickerItemDelegate::SymbolRole).toString();
-                    bool wasCurrent = (symbol == m_currentSymbol);
+                QString symbol = item->data(TickerItemDelegate::SymbolRole).toString();
 
-                    m_listWidget->blockSignals(true);
-                    m_listWidget->takeItem(row);
-                    m_listWidget->insertItem(0, item);
+                // Create context menu
+                QMenu contextMenu(this);
 
-                    // If it was the current item, keep it selected at new position
-                    if (wasCurrent) {
-                        m_listWidget->setCurrentItem(item);
-                    }
+                QAction *moveToTopAction = contextMenu.addAction("Move to Top");
+                QAction *deleteAction = contextMenu.addAction("Delete");
 
-                    m_listWidget->blockSignals(false);
-                    m_listWidget->viewport()->update();
+                // Execute menu at cursor position
+                QAction *selectedAction = contextMenu.exec(mouseEvent->globalPosition().toPoint());
+
+                if (selectedAction == moveToTopAction) {
+                    emit symbolMoveToTopRequested(symbol);
+                } else if (selectedAction == deleteAction) {
+                    emit symbolDeleteRequested(symbol);
                 }
+
                 return true;
             }
         }

@@ -92,16 +92,68 @@ TickerDataManager::TickerDataManager(IBKRClient* client, QObject* parent)
 
 TickerDataManager::~TickerDataManager()
 {
-    unsubscribeFromCurrentTicker();
+    // Don't unsubscribe in destructor - m_client may already be destroyed
+    // When app is shutting down, TWS connection will be closed automatically
 }
 
-void TickerDataManager::addTicker(const QString& symbol, Timeframe timeframe)
+void TickerDataManager::activateTicker(const QString& symbol, const QString& exchange)
 {
-    if (!m_tickerData.contains(symbol)) {
-        LOG_DEBUG(QString("Adding ticker %1").arg(symbol));
+    // Store exchange if provided
+    if (!exchange.isEmpty()) {
+        m_symbolToExchange[symbol] = exchange;
+    }
+
+    // If already current, nothing to do
+    if (m_currentSymbol == symbol) {
+        return;
+    }
+
+    // Add ticker if new
+    bool isNewTicker = !m_tickerData.contains(symbol);
+    if (isNewTicker) {
         m_tickerData[symbol] = TickerData{symbol};
     }
-    loadTimeframe(symbol, timeframe);
+
+    // Activate ticker (will subscribe to tick-by-tick for immediate price updates)
+
+    // Switch to this ticker (will subscribe to tick-by-tick only)
+    // Historical data and real-time bars will be loaded after first tick
+    setCurrentSymbol(symbol);
+
+    // Emit signal so UI can update (chart will show cached data if available)
+    emit tickerActivated(symbol);
+}
+
+void TickerDataManager::removeTicker(const QString& symbol)
+{
+    if (m_tickerData.contains(symbol)) {
+        LOG_DEBUG(QString("Removing ticker %1 from cache").arg(symbol));
+        m_tickerData.remove(symbol);
+
+        // Clean up request ID mappings
+        QList<int> reqIdsToRemove;
+        for (auto it = m_reqIdToSymbol.begin(); it != m_reqIdToSymbol.end(); ++it) {
+            if (it.value() == symbol) {
+                reqIdsToRemove.append(it.key());
+            }
+        }
+        for (int reqId : reqIdsToRemove) {
+            m_reqIdToSymbol.remove(reqId);
+            m_reqIdToTimeframe.remove(reqId);
+        }
+
+        // Clean up real-time bars mappings
+        QList<int> rtReqIdsToRemove;
+        for (auto it = m_realTimeBarsReqIdToSymbol.begin(); it != m_realTimeBarsReqIdToSymbol.end(); ++it) {
+            if (it.value() == symbol) {
+                rtReqIdsToRemove.append(it.key());
+            }
+        }
+        for (int reqId : rtReqIdsToRemove) {
+            m_realTimeBarsReqIdToSymbol.remove(reqId);
+            m_realTimeBarsLogged.remove(reqId);
+        }
+    }
 }
 
 void TickerDataManager::loadTimeframe(const QString& symbol, Timeframe timeframe)
@@ -114,7 +166,6 @@ void TickerDataManager::loadTimeframe(const QString& symbol, Timeframe timeframe
         return;
     }
 
-    LOG_DEBUG(QString("Loading historical data for %1 [%2]").arg(symbol).arg(timeframeToString(timeframe)));
     int reqId = m_nextReqId++;
     m_reqIdToSymbol[reqId] = symbol;
     m_reqIdToTimeframe[reqId] = timeframe;
@@ -146,8 +197,10 @@ void TickerDataManager::setCurrentSymbol(const QString& symbol)
         m_currentSymbol = symbol;
         m_isAggregating = false; // Reset aggregation state to prevent mixing prices from different tickers
         LOG_INFO(QString("Switched to symbol: %1").arg(symbol));
-        loadTimeframe(symbol, m_currentTimeframe);
-        subscribeToCurrentTicker();
+
+        // Subscribe to tick-by-tick ONLY (for immediate price updates)
+        // Historical data and real-time bars will be loaded after first tick
+        subscribeToTickByTick();
     }
 }
 
@@ -163,17 +216,9 @@ void TickerDataManager::setCurrentTimeframe(Timeframe timeframe)
     }
 }
 
-void TickerDataManager::subscribeToCurrentTicker()
+void TickerDataManager::subscribeToTickByTick()
 {
     if (m_currentSymbol.isEmpty() || !m_client || !m_client->isConnected()) return;
-    unsubscribeFromCurrentTicker();
-
-    // Subscribe to real-time 5s bars (completed bars go to cache)
-    m_realTimeBarsReqId = m_nextReqId++;
-    m_realTimeBarsReqIdToSymbol[m_realTimeBarsReqId] = m_currentSymbol; // Map reqId to symbol
-    m_realTimeBarsLogged[m_realTimeBarsReqId] = false; // Reset logging for this reqId
-    LOG_DEBUG(QString("Subscribing to real-time bars for %1 (reqId: %2)").arg(m_currentSymbol).arg(m_realTimeBarsReqId));
-    m_client->requestRealTimeBars(m_realTimeBarsReqId, m_currentSymbol);
 
     // Subscribe to tick-by-tick for price lines and current dynamic candle
     m_tickByTickReqId = m_nextReqId++;
@@ -181,9 +226,27 @@ void TickerDataManager::subscribeToCurrentTicker()
     m_client->requestTickByTick(m_tickByTickReqId, m_currentSymbol);
 }
 
+void TickerDataManager::subscribeToRealTimeBars()
+{
+    if (m_currentSymbol.isEmpty() || !m_client || !m_client->isConnected()) return;
+
+    // Subscribe to real-time 5s bars (completed bars go to cache)
+    m_realTimeBarsReqId = m_nextReqId++;
+    m_realTimeBarsReqIdToSymbol[m_realTimeBarsReqId] = m_currentSymbol; // Map reqId to symbol
+    m_realTimeBarsLogged[m_realTimeBarsReqId] = false; // Reset logging for this reqId
+    LOG_DEBUG(QString("Subscribing to real-time bars for %1 (reqId: %2)").arg(m_currentSymbol).arg(m_realTimeBarsReqId));
+    m_client->requestRealTimeBars(m_realTimeBarsReqId, m_currentSymbol);
+}
+
+void TickerDataManager::subscribeToCurrentTicker()
+{
+    subscribeToTickByTick();
+    subscribeToRealTimeBars();
+}
+
 void TickerDataManager::unsubscribeFromCurrentTicker()
 {
-    if (m_realTimeBarsReqId != -1 && m_client) {
+    if (m_realTimeBarsReqId != -1 && m_client && m_client->isConnected()) {
         LOG_DEBUG(QString("Unsubscribing from real-time bars (reqId: %1)").arg(m_realTimeBarsReqId));
         m_client->cancelRealTimeBars(m_realTimeBarsReqId);
         m_realTimeBarsReqIdToSymbol.remove(m_realTimeBarsReqId); // Remove mapping
@@ -191,7 +254,7 @@ void TickerDataManager::unsubscribeFromCurrentTicker()
         m_realTimeBarsReqId = -1;
     }
 
-    if (m_tickByTickReqId != -1 && m_client) {
+    if (m_tickByTickReqId != -1 && m_client && m_client->isConnected()) {
         LOG_DEBUG(QString("Unsubscribing from tick-by-tick data (reqId: %1)").arg(m_tickByTickReqId));
         m_client->cancelTickByTick(m_tickByTickReqId);
         m_tickByTickReqId = -1;
@@ -220,7 +283,17 @@ void TickerDataManager::onHistoricalDataFinished(int reqId)
     QString symbol = m_reqIdToSymbol[reqId];
     Timeframe timeframe = m_reqIdToTimeframe[reqId];
     m_tickerData[symbol].isLoadedByTimeframe[timeframe] = true;
-    LOG_DEBUG(QString("Historical data loaded for %1 [%2]").arg(symbol).arg(timeframeToString(timeframe)));
+
+    // Count how many bars were loaded
+    int barCount = 0;
+    if (m_tickerData.contains(symbol)) {
+        auto it = m_tickerData[symbol].barsByTimeframe.find(timeframe);
+        if (it != m_tickerData[symbol].barsByTimeframe.end()) {
+            barCount = it.value().size();
+        }
+    }
+
+    LOG_DEBUG(QString("Historical data loaded for %1 [%2]: %3 bars").arg(symbol).arg(timeframeToString(timeframe)).arg(barCount));
     emit tickerDataLoaded(symbol);
     m_reqIdToSymbol.remove(reqId);
     m_reqIdToTimeframe.remove(reqId);
@@ -301,6 +374,13 @@ void TickerDataManager::onTickByTickUpdate(int reqId, double price, double bid, 
     double midPrice = (bid > 0 && ask > 0) ? (bid + ask) / 2.0 : price;
     if (midPrice <= 0) return;
 
+    // Check if this is the first tick for current symbol
+    // If so, start loading historical data and subscribe to real-time bars
+    if (m_realTimeBarsReqId == -1) {
+        loadTimeframe(m_currentSymbol, m_currentTimeframe);
+        subscribeToRealTimeBars();
+    }
+
     qint64 currentTime = QDateTime::currentSecsSinceEpoch();
     qint64 barTimestamp = (currentTime / 5) * 5; // 5-second boundary
 
@@ -311,24 +391,40 @@ void TickerDataManager::onTickByTickUpdate(int reqId, double price, double bid, 
         emit priceUpdateReceived(m_currentSymbol);
     }
 
-    if (!m_hasDynamicBar || m_currentDynamicBar.timestamp != barTimestamp) {
-        // Start new dynamic candle
-        // If we have a previous candle, start with its close
-        double startPrice = midPrice;
-        if (m_hasDynamicBar && m_currentDynamicBar.close > 0) {
-            startPrice = m_currentDynamicBar.close;
+    // Only update dynamic candle if we already have at least one real-time bar
+    // (need to know the close price of previous bar to start new candle correctly)
+    if (m_hasDynamicBar) {
+        if (m_currentDynamicBar.timestamp != barTimestamp) {
+            // Start new dynamic candle with close of previous
+            double startPrice = m_currentDynamicBar.close;
+            m_currentDynamicBar = {barTimestamp, startPrice, startPrice, startPrice, startPrice, 0};
         }
-        m_currentDynamicBar = {barTimestamp, startPrice, startPrice, startPrice, startPrice, 0};
-        m_hasDynamicBar = true;
+
+        // Update with new tick
+        m_currentDynamicBar.high = qMax(m_currentDynamicBar.high, midPrice);
+        m_currentDynamicBar.low = qMin(m_currentDynamicBar.low, midPrice);
+        m_currentDynamicBar.close = midPrice;
+
+        // Emit for chart update (NOT added to cache!)
+        emit currentBarUpdated(m_currentSymbol, m_currentDynamicBar);
     }
 
-    // Update with new tick
-    m_currentDynamicBar.high = qMax(m_currentDynamicBar.high, midPrice);
-    m_currentDynamicBar.low = qMin(m_currentDynamicBar.low, midPrice);
-    m_currentDynamicBar.close = midPrice;
+    // Calculate price for ticker list (use last trade price, fallback to mid-price)
+    double displayPrice = (price > 0) ? price : midPrice;
 
-    // Emit for chart update (NOT added to cache!)
-    emit currentBarUpdated(m_currentSymbol, m_currentDynamicBar);
+    // Calculate change percent from previous bar
+    double changePercent = 0.0;
+    const QVector<CandleBar>* bars = getBars(m_currentSymbol, m_currentTimeframe);
+    if (bars && bars->size() >= 2) {
+        // Compare with previous bar's close (1 bar ago for 10s = 10 seconds ago)
+        double oldPrice = (*bars)[bars->size() - 2].close;
+        if (oldPrice > 0) {
+            changePercent = ((displayPrice - oldPrice) / oldPrice) * 100.0;
+        }
+    }
+
+    // Emit price update for ticker list and price lines (immediate!)
+    emit priceUpdated(m_currentSymbol, displayPrice, changePercent, bid, ask, midPrice);
 }
 
 void TickerDataManager::onCandleBoundaryCheck()

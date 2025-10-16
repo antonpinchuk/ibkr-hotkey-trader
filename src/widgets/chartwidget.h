@@ -5,6 +5,7 @@
 #include <QComboBox>
 #include <QCheckBox>
 #include <QHBoxLayout>
+#include <QTimer>
 #include "qcustomplot.h"
 #include "models/tickerdatamanager.h"
 
@@ -20,17 +21,18 @@ public:
     void updateChart();
     void updatePriceLines(double bid, double ask, double mid);
     void updateCurrentBar(const CandleBar& bar);
+    void clearChart();
 
 private slots:
     void onCandleSizeChanged(int index);
     void onAutoScaleChanged(bool checked);
     void onXRangeChanged(const QCPRange &range);
+    void scheduledReplot();
 
 private:
     void setupChart();
     void setupControls();
     QHBoxLayout* createControlsLayout();
-    void clearChart();
     void plotCandles(const QVector<CandleBar>& bars);
     void addSessionBackgrounds(const QVector<CandleBar>& bars);
     void rescaleVerticalAxis();
@@ -56,6 +58,13 @@ private:
     Timeframe m_currentTimeframe;
     TickerDataManager* m_dataManager;
     bool m_autoScale;
+
+    // Replot debouncing
+    QTimer* m_replotTimer;
+    double m_lastBid;
+    double m_lastAsk;
+    double m_lastMid;
+    bool m_priceLinesDirty;
 };
 
 #endif // CHARTWIDGET_H

@@ -99,7 +99,6 @@ void SystemTrayManager::setTickerSymbol(const QString& symbol)
 {
     m_tickerSymbol = symbol;
     updateTrayDisplay();
-    LOG_DEBUG(QString("Status bar ticker set to: %1").arg(symbol));
 }
 
 void SystemTrayManager::startBlinking()

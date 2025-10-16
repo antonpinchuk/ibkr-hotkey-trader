@@ -54,16 +54,21 @@ public:
     explicit TickerDataManager(IBKRClient* client, QObject* parent = nullptr);
     ~TickerDataManager();
 
-    void addTicker(const QString& symbol, Timeframe timeframe = Timeframe::MIN_1);
+    void activateTicker(const QString& symbol, const QString& exchange = QString());
+    void removeTicker(const QString& symbol);
     void loadTimeframe(const QString& symbol, Timeframe timeframe);
     const QVector<CandleBar>* getBars(const QString& symbol, Timeframe timeframe) const;
     bool isLoaded(const QString& symbol, Timeframe timeframe) const;
     void setCurrentSymbol(const QString& symbol);
     void setCurrentTimeframe(Timeframe timeframe);
     Timeframe currentTimeframe() const { return m_currentTimeframe; }
+    QString currentSymbol() const { return m_currentSymbol; }
+    QString getExchange(const QString& symbol) const { return m_symbolToExchange.value(symbol, QString()); }
 
 signals:
     void tickerDataLoaded(const QString& symbol);
+    void tickerActivated(const QString& symbol); // Emitted when ticker is ready (UI should update)
+    void priceUpdated(const QString& symbol, double price, double changePercent, double bid, double ask, double mid); // For ticker list and price lines
     void barsUpdated(const QString& symbol, Timeframe timeframe);
     void currentBarUpdated(const QString& symbol, const CandleBar& bar); // For live tick updates (not in cache)
     void noPriceUpdate(const QString& symbol); // Emitted when no price update received for previous bar
@@ -79,6 +84,8 @@ private slots:
 
 private:
     void subscribeToCurrentTicker();
+    void subscribeToTickByTick();
+    void subscribeToRealTimeBars();
     void unsubscribeFromCurrentTicker();
     void requestHistoricalBars(const QString& symbol, int reqId, Timeframe timeframe);
     void requestMissingBars(const QString& symbol, qint64 fromTime, qint64 toTime);
@@ -86,6 +93,7 @@ private:
 
     IBKRClient* m_client;
     QMap<QString, TickerData> m_tickerData;
+    QMap<QString, QString> m_symbolToExchange; // symbol -> exchange
     QMap<int, QString> m_reqIdToSymbol;
     QMap<int, Timeframe> m_reqIdToTimeframe;
     int m_nextReqId;

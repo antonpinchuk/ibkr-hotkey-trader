@@ -128,9 +128,13 @@ void IBKRWrapper::tickByTickAllLast(int reqId, int tickType, time_t time, double
 
 void IBKRWrapper::tickByTickBidAsk(int reqId, time_t time, double bidPrice, double askPrice, Decimal bidSize, Decimal askSize, const TickAttribBidAsk& tickAttribBidAsk)
 {
+    Q_UNUSED(time);
+    Q_UNUSED(bidSize);
+    Q_UNUSED(askSize);
+    Q_UNUSED(tickAttribBidAsk);
+
     // Log only first successful tick for each reqId (similar to account/portfolio logging)
     if (!m_tickByTickLogged.value(reqId, false)) {
-        LOG_DEBUG(QString("tickByTickBidAsk [reqId=%1]: bid=%2, ask=%3 - first tick received, further ticks will not be logged").arg(reqId).arg(bidPrice).arg(askPrice));
         m_tickByTickLogged[reqId] = true;
     }
     emit tickByTickReceived(reqId, 0, bidPrice, askPrice);

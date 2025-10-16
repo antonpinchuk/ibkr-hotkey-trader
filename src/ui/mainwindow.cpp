@@ -41,7 +41,6 @@ MainWindow::MainWindow(QWidget *parent)
     , m_symbolSearch(nullptr)
     , m_ibkrClient(nullptr)
     , m_tradingManager(nullptr)
-    , m_nextTickerId(1000)  // Start from 1000 to avoid conflicts
     , m_historicalOrderCounter(1)  // Start from 1 for historical orders
     , m_nextHistoricalOrderId(-1)  // Start from -1 for unique historical order IDs
 {
@@ -56,12 +55,6 @@ MainWindow::MainWindow(QWidget *parent)
     m_symbolSearch = new SymbolSearchDialog(m_ibkrClient, this);
     m_globalHotkeyManager = new GlobalHotkeyManager(this);
     m_systemTrayManager = new SystemTrayManager(this);
-
-    // Setup 10-second timer for inactive ticker updates
-    m_inactiveTickerTimer = new QTimer(this);
-    m_inactiveTickerTimer->setInterval(10000); // 10 seconds
-    connect(m_inactiveTickerTimer, &QTimer::timeout, this, &MainWindow::updateInactiveTickers);
-    m_inactiveTickerTimer->start();
 
     setupUI();
     setupConnections();
@@ -444,21 +437,24 @@ void MainWindow::setupConnections()
     // Symbol search
     connect(m_symbolSearch, &SymbolSearchDialog::symbolSelected, this, &MainWindow::onSymbolSelected);
 
-    // Ticker list (exchange already stored when symbol was added)
+    // Ticker list
     connect(m_tickerList, &TickerListWidget::symbolSelected, this, [this](const QString& symbol) {
-        // Retrieve stored exchange or use empty string
-        QString exchange = m_symbolToExchange.value(symbol, QString());
+        // Retrieve stored exchange from TickerDataManager
+        QString exchange = m_tickerDataManager->getExchange(symbol);
         onSymbolSelected(symbol, exchange);
     });
     connect(m_tickerList, &TickerListWidget::tickerLabelClicked, this, &MainWindow::onSymbolSearchRequested);
+    connect(m_tickerList, &TickerListWidget::symbolMoveToTopRequested, this, &MainWindow::onSymbolMoveToTop);
+    connect(m_tickerList, &TickerListWidget::symbolDeleteRequested, this, &MainWindow::onSymbolDelete);
 
     // Splitter state saving
     connect(m_mainSplitter, &QSplitter::splitterMoved, this, &MainWindow::onSplitterMoved);
     connect(m_rightSplitter, &QSplitter::splitterMoved, this, &MainWindow::onSplitterMoved);
     connect(m_rightBottomSplitter, &QSplitter::splitterMoved, this, &MainWindow::onSplitterMoved);
 
-    // Price updates (use marketDataUpdated for free data)
-    connect(m_ibkrClient, &IBKRClient::marketDataUpdated, this, &MainWindow::onTickByTickUpdated);
+    // TickerDataManager signals
+    connect(m_tickerDataManager, &TickerDataManager::tickerActivated, this, &MainWindow::onTickerActivated);
+    connect(m_tickerDataManager, &TickerDataManager::priceUpdated, this, &MainWindow::onPriceUpdated);
 
     // Chart updates from TickerDataManager (dynamic candle and bars)
     connect(m_tickerDataManager, &TickerDataManager::currentBarUpdated, this, [this](const QString& symbol, const CandleBar& bar) {
@@ -549,29 +545,6 @@ void MainWindow::setupConnections()
             m_systemTrayManager->stopBlinking();
         }
     });
-
-    // Error handling for market data subscription issues
-    connect(m_ibkrClient, &IBKRClient::error, this, [this](int id, int code, const QString& message) {
-        // Market data subscription errors: 10089, 10168, 354, 10197, 10167, 162
-        if (code == 10089 || code == 10168 || code == 354 || code == 10197 || code == 10167 || code == 162) {
-            LOG_DEBUG(QString("Market data subscription error: id=%1, code=%2, pending=%3")
-                .arg(id).arg(code).arg(m_pendingSymbol));
-
-            // Check if we have a pending symbol (just added, waiting for data)
-            if (!m_pendingSymbol.isEmpty()) {
-                // Find ticker ID for pending symbol
-                if (m_symbolToTickerId.contains(m_pendingSymbol)) {
-                    int tickerId = m_symbolToTickerId[m_pendingSymbol];
-                    onMarketDataError(tickerId);
-                    m_pendingSymbol.clear();
-                }
-            }
-            // Or check if this error is for a ticker we're tracking (legacy check)
-            else if (m_tickerIdToSymbol.contains(id)) {
-                onMarketDataError(id);
-            }
-        }
-    });
 }
 
 void MainWindow::keyPressEvent(QKeyEvent *event)
@@ -597,49 +570,86 @@ void MainWindow::onSymbolSearchRequested()
 
 void MainWindow::onSymbolSelected(const QString& symbol, const QString& exchange)
 {
-    // Store exchange for this symbol
+    // TickerDataManager handles all the logic: adding ticker, loading data, and subscribing
+    m_tickerDataManager->activateTicker(symbol, exchange);
+}
+
+void MainWindow::onTickerActivated(const QString& symbol)
+{
+    // Update all UI components when ticker is activated
+    m_currentSymbol = symbol;
+    m_tickerList->setTickerLabel(symbol);
+    m_tickerList->addSymbol(symbol);
+    m_tickerList->setCurrentSymbol(symbol);
+    m_chart->setSymbol(symbol);
+    m_tradingManager->setSymbol(symbol);
+    m_orderHistory->setCurrentSymbol(symbol);
+    m_systemTrayManager->setTickerSymbol(symbol);
+    m_systemTrayManager->stopBlinking();
+
+    // Update TradingManager with exchange info
+    QString exchange = m_tickerDataManager->getExchange(symbol);
     if (!exchange.isEmpty()) {
-        m_symbolToExchange[symbol] = exchange;
+        m_tradingManager->setSymbolExchange(symbol, exchange);
     }
+}
 
-    // Get or create ticker ID for this symbol
-    int tickerId;
+void MainWindow::onPriceUpdated(const QString& symbol, double price, double changePercent, double bid, double ask, double mid)
+{
+    // Update ticker list with new price
+    m_tickerList->updateTickerPrice(symbol, price, changePercent);
 
-    if (m_symbolToTickerId.contains(symbol)) {
-        // Existing symbol - just switch UI, market data already running
-        tickerId = m_symbolToTickerId[symbol];
+    // Update order history with current price for PnL calculation
+    m_orderHistory->updateCurrentPrice(symbol, price);
 
-        m_currentSymbol = symbol;
-        m_tickerDataManager->setCurrentSymbol(symbol);  // Track current symbol for background loading
-        m_tickerList->setTickerLabel(symbol);
-        m_tickerList->setCurrentSymbol(symbol);
-        m_chart->setSymbol(symbol);
-        m_tradingManager->setSymbol(symbol);
-        m_tradingManager->resetTickLogging(tickerId); // Reset tick logging when switching back to symbol
-        m_orderHistory->setCurrentSymbol(symbol);
-        m_systemTrayManager->setTickerSymbol(symbol);
-        m_systemTrayManager->stopBlinking(); // Stop blinking when switching symbol
+    // Update price lines on chart (immediate!)
+    if (symbol == m_currentSymbol) {
+        m_chart->updatePriceLines(bid, ask, mid);
+    }
+}
 
-        // Update TradingManager with exchange info
-        if (m_symbolToExchange.contains(symbol)) {
-            m_tradingManager->setSymbolExchange(symbol, m_symbolToExchange[symbol]);
+void MainWindow::onSymbolMoveToTop(const QString& symbol)
+{
+    m_tickerList->moveSymbolToTop(symbol);
+}
+
+void MainWindow::onSymbolDelete(const QString& symbol)
+{
+    LOG_DEBUG(QString("Deleting ticker %1").arg(symbol));
+
+    // Remove from ticker data manager (will unsubscribe from all data feeds)
+    m_tickerDataManager->removeTicker(symbol);
+
+    // Remove from ticker list widget
+    m_tickerList->removeSymbol(symbol);
+
+    // If this was the current symbol, switch to top ticker or reset to initial state
+    if (m_currentSymbol == symbol) {
+        QString topSymbol = m_tickerList->getTopSymbol();
+
+        if (!topSymbol.isEmpty()) {
+            // Switch to top ticker
+            QString exchange = m_tickerDataManager->getExchange(topSymbol);
+            onSymbolSelected(topSymbol, exchange);
+        } else {
+            // No tickers left - reset to initial state
+            m_currentSymbol.clear();
+
+            // Unsubscribe from market data
+            m_tickerDataManager->setCurrentSymbol("");
+
+            // Clear UI
+            m_tickerList->setTickerLabel("N/A");
+            m_chart->setSymbol("");
+            m_chart->clearChart();
+            m_tradingManager->setSymbol("");
+            m_orderHistory->setCurrentSymbol("");
+            m_systemTrayManager->setTickerSymbol("");
+            m_systemTrayManager->stopBlinking();
+
+            // Disable trading buttons
+            enableTrading(false);
         }
-
-        // Note: Don't restart market data - it's already running for this symbol
-    } else {
-        // New symbol - mark as pending and wait for data confirmation
-        // Don't cancel old market data yet - wait until new symbol is confirmed
-        tickerId = m_nextTickerId++;
-        m_symbolToTickerId[symbol] = tickerId;
-        m_tickerIdToSymbol[tickerId] = symbol;
-        m_pendingSymbol = symbol;
-        m_previousSymbol = m_currentSymbol;  // Save current symbol
-
-        // Add to ticker data manager (will load historical bars)
-        m_tickerDataManager->addTicker(symbol);
-
-        // Request market data for new symbol
-        m_ibkrClient->requestMarketData(tickerId, symbol);
     }
 }
 
@@ -950,159 +960,8 @@ void MainWindow::saveUIState()
     uiState.saveSplitterSizes("right_bottom", m_rightBottomSplitter->sizes());
 }
 
-void MainWindow::onMarketDataError(int tickerId)
-{
-    if (!m_tickerIdToSymbol.contains(tickerId)) {
-        return;
-    }
-
-    QString failedSymbol = m_tickerIdToSymbol[tickerId];
-
-    LOG_DEBUG(QString("Market data error for ticker %1 (id=%2)").arg(failedSymbol).arg(tickerId));
-
-    // Remove failed ticker from all tracking structures
-    m_tickerIdToSymbol.remove(tickerId);
-    m_symbolToTickerId.remove(failedSymbol);
-
-    // Note: Don't call cancelMarketData - TWS never created this ticker ID due to subscription error
-
-    // Check if this was a pending symbol (new symbol waiting for data)
-    if (failedSymbol == m_pendingSymbol) {
-        // Simply clear pending - don't add to UI at all
-        m_pendingSymbol.clear();
-
-        // Current symbol stays unchanged (no rollback needed since we never switched)
-        // Show error message to user
-        showToast(QString("No market data subscription for %1. Subscribe in IBKR Account Management.").arg(failedSymbol), "error");
-    }
-    // If it's current symbol that already exists (shouldn't happen normally)
-    else if (m_currentSymbol == failedSymbol) {
-        m_tickerList->removeSymbol(failedSymbol);
-
-        if (!m_previousSymbol.isEmpty()) {
-            // Restore previous symbol
-            m_currentSymbol = m_previousSymbol;
-            m_tickerList->setTickerLabel(m_previousSymbol);
-            m_tickerList->setCurrentSymbol(m_previousSymbol);
-            m_chart->setSymbol(m_previousSymbol);
-            m_tradingManager->setSymbol(m_previousSymbol);
-            m_orderHistory->setCurrentSymbol(m_previousSymbol);
-        } else {
-            m_currentSymbol.clear();
-            m_tickerList->setTickerLabel("N/A");
-        }
-
-        showToast(QString("Lost market data for %1").arg(failedSymbol), "error");
-    }
-}
-
 void MainWindow::closeEvent(QCloseEvent *event)
 {
     saveUIState();
     QMainWindow::closeEvent(event);
-}
-
-void MainWindow::onTickByTickUpdated(int reqId, double price, double bidPrice, double askPrice)
-{
-    // Find which symbol this reqId belongs to
-    if (!m_tickerIdToSymbol.contains(reqId)) {
-        LOG_DEBUG(QString("onTickByTickUpdated: Unknown reqId=%1").arg(reqId));
-        return;
-    }
-
-    QString symbol = m_tickerIdToSymbol[reqId];
-
-    // Check if this is first successful data for pending symbol
-    if (symbol == m_pendingSymbol) {
-        // Data confirmed! Switch to new symbol
-        // NOTE: Keep old market data active - allows fast switching between multiple tickers
-
-        // Add to UI and make current
-        m_currentSymbol = symbol;
-        m_tickerDataManager->setCurrentSymbol(symbol);  // Track current symbol for background loading
-        m_tickerList->setTickerLabel(symbol);
-        m_tickerList->addSymbol(symbol);
-        m_tickerList->setCurrentSymbol(symbol);
-        m_chart->setSymbol(symbol);
-        m_tradingManager->setSymbol(symbol);
-        m_tradingManager->resetTickLogging(reqId); // Reset tick logging for new symbol
-        m_orderHistory->setCurrentSymbol(symbol);
-        m_systemTrayManager->setTickerSymbol(symbol);
-        m_systemTrayManager->stopBlinking(); // Stop blinking for new symbol
-
-        // Update TradingManager with exchange info
-        if (m_symbolToExchange.contains(symbol)) {
-            m_tradingManager->setSymbolExchange(symbol, m_symbolToExchange[symbol]);
-        }
-
-        m_pendingSymbol.clear();
-        m_previousSymbol.clear();
-    }
-
-    // Use last trade price (includes pre/post market), fallback to mid-price
-    double displayPrice = 0.0;
-    if (price > 0) {
-        displayPrice = price;
-    } else if (bidPrice > 0 && askPrice > 0) {
-        displayPrice = (bidPrice + askPrice) / 2.0;
-    } else {
-        // No valid price data
-        LOG_DEBUG(QString("onTickByTickUpdated: No valid price data for %1").arg(symbol));
-        return;
-    }
-
-    // Initialize 10-second-ago price if this is first update
-    if (!m_tenSecondAgoPrices.contains(symbol)) {
-        m_tenSecondAgoPrices[symbol] = displayPrice;
-    }
-
-    // Store the current price
-    m_lastPrices[symbol] = displayPrice;
-
-    // Update OrderHistoryWidget with current price for PnL calculation
-    m_orderHistory->updateCurrentPrice(symbol, displayPrice);
-
-    // Update price lines if this is the current symbol
-    if (symbol == m_currentSymbol) {
-        double mid = (bidPrice > 0 && askPrice > 0) ? (bidPrice + askPrice) / 2.0 : displayPrice;
-        double bid = bidPrice > 0 ? bidPrice : displayPrice;
-        double ask = askPrice > 0 ? askPrice : displayPrice;
-        m_chart->updatePriceLines(bid, ask, mid);
-    }
-
-    // Calculate change percent from 10 seconds ago (use bars from TickerDataManager)
-    double changePercent = 0.0;
-    const QVector<CandleBar>* bars = m_tickerDataManager->getBars(symbol, m_tickerDataManager->currentTimeframe());
-    if (bars && !bars->isEmpty()) {
-        // Compare current price with price from 10 seconds ago (1 bar ago)
-        if (bars->size() >= 2) {
-            double oldPrice = (*bars)[bars->size() - 2].close;
-            if (oldPrice > 0) {
-                changePercent = ((displayPrice - oldPrice) / oldPrice) * 100.0;
-            }
-        }
-    } else if (m_tenSecondAgoPrices.contains(symbol)) {
-        // Fallback to old method if bars not loaded yet
-        double oldPrice = m_tenSecondAgoPrices[symbol];
-        if (oldPrice > 0) {
-            changePercent = ((displayPrice - oldPrice) / oldPrice) * 100.0;
-        }
-    }
-
-    // Update the ticker list widget
-    m_tickerList->updateTickerPrice(symbol, displayPrice, changePercent);
-}
-
-void MainWindow::updateInactiveTickers()
-{
-    // Every 10 seconds:
-    // 1. Update the "10 seconds ago" price snapshot
-    // 2. Request snapshot data for inactive tickers
-
-    // Update the 10-second-ago snapshot for all tickers
-    m_tenSecondAgoPrices = m_lastPrices;
-
-    // TODO: For inactive tickers, we could request snapshot market data
-    // For now, they will only update when they become active
-    // In future, we can use reqMktData with snapshot=true for inactive tickers
 }
