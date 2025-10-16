@@ -66,6 +66,9 @@ TickerDataManager::TickerDataManager(IBKRClient* client, QObject* parent)
     , m_hasDynamicBar(false)
     , m_lastCompletedBarTime(0)
     , m_isAggregating(false)
+    , m_lastPriceUpdateTime(0)
+    , m_currentBarStartTime(0)
+    , m_hasPriceUpdateForCurrentBar(false)
 {
     connect(m_client, &IBKRClient::historicalBarReceived, this, &TickerDataManager::onHistoricalBarReceived);
     connect(m_client, &IBKRClient::historicalDataFinished, this, &TickerDataManager::onHistoricalDataFinished);
@@ -301,6 +304,13 @@ void TickerDataManager::onTickByTickUpdate(int reqId, double price, double bid, 
     qint64 currentTime = QDateTime::currentSecsSinceEpoch();
     qint64 barTimestamp = (currentTime / 5) * 5; // 5-second boundary
 
+    // Track price update for current bar
+    m_lastPriceUpdateTime = currentTime;
+    if (!m_hasPriceUpdateForCurrentBar) {
+        m_hasPriceUpdateForCurrentBar = true;
+        emit priceUpdateReceived(m_currentSymbol);
+    }
+
     if (!m_hasDynamicBar || m_currentDynamicBar.timestamp != barTimestamp) {
         // Start new dynamic candle
         // If we have a previous candle, start with its close
@@ -330,9 +340,16 @@ void TickerDataManager::onCandleBoundaryCheck()
 
     // If dynamic bar is from previous period, start new one
     if (m_currentDynamicBar.timestamp < currentBoundary) {
+        // Check if previous bar had any price updates
+        if (m_currentBarStartTime > 0 && !m_hasPriceUpdateForCurrentBar) {
+            emit noPriceUpdate(m_currentSymbol);
+        }
+
         // Start new bar with close of previous
         double startPrice = m_currentDynamicBar.close;
         m_currentDynamicBar = {currentBoundary, startPrice, startPrice, startPrice, startPrice, 0};
+        m_currentBarStartTime = currentBoundary;
+        m_hasPriceUpdateForCurrentBar = false; // Reset for new bar
         emit currentBarUpdated(m_currentSymbol, m_currentDynamicBar);
     }
 }

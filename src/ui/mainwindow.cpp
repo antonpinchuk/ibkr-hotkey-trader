@@ -13,6 +13,7 @@
 #include "models/tickerdatamanager.h"
 #include "utils/logger.h"
 #include "utils/globalhotkeymanager.h"
+#include "utils/systemtraymanager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QMenuBar>
@@ -54,6 +55,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_settingsDialog = new SettingsDialog(this);
     m_symbolSearch = new SymbolSearchDialog(m_ibkrClient, this);
     m_globalHotkeyManager = new GlobalHotkeyManager(this);
+    m_systemTrayManager = new SystemTrayManager(this);
 
     // Setup 10-second timer for inactive ticker updates
     m_inactiveTickerTimer = new QTimer(this);
@@ -536,6 +538,18 @@ void MainWindow::setupConnections()
         }
     });
 
+    // System tray: track price updates for blinking
+    connect(m_tickerDataManager, &TickerDataManager::noPriceUpdate, this, [this](const QString& symbol) {
+        if (symbol == m_currentSymbol) {
+            m_systemTrayManager->startBlinking();
+        }
+    });
+    connect(m_tickerDataManager, &TickerDataManager::priceUpdateReceived, this, [this](const QString& symbol) {
+        if (symbol == m_currentSymbol) {
+            m_systemTrayManager->stopBlinking();
+        }
+    });
+
     // Error handling for market data subscription issues
     connect(m_ibkrClient, &IBKRClient::error, this, [this](int id, int code, const QString& message) {
         // Market data subscription errors: 10089, 10168, 354, 10197, 10167, 162
@@ -603,6 +617,8 @@ void MainWindow::onSymbolSelected(const QString& symbol, const QString& exchange
         m_tradingManager->setSymbol(symbol);
         m_tradingManager->resetTickLogging(tickerId); // Reset tick logging when switching back to symbol
         m_orderHistory->setCurrentSymbol(symbol);
+        m_systemTrayManager->setTickerSymbol(symbol);
+        m_systemTrayManager->stopBlinking(); // Stop blinking when switching symbol
 
         // Update TradingManager with exchange info
         if (m_symbolToExchange.contains(symbol)) {
@@ -1011,6 +1027,8 @@ void MainWindow::onTickByTickUpdated(int reqId, double price, double bidPrice, d
         m_tradingManager->setSymbol(symbol);
         m_tradingManager->resetTickLogging(reqId); // Reset tick logging for new symbol
         m_orderHistory->setCurrentSymbol(symbol);
+        m_systemTrayManager->setTickerSymbol(symbol);
+        m_systemTrayManager->stopBlinking(); // Stop blinking for new symbol
 
         // Update TradingManager with exchange info
         if (m_symbolToExchange.contains(symbol)) {

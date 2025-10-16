@@ -150,6 +150,21 @@ set(SOURCES
     src/utils/globalhotkeymanager.h
 )
 
+# Platform-specific sources
+if(APPLE)
+    list(APPEND SOURCES
+        src/utils/systemtraymanager.h
+        src/utils/systemtraymanager.mm
+    )
+    # Enable Objective-C++ for .mm files
+    set_source_files_properties(src/utils/systemtraymanager.mm PROPERTIES
+        COMPILE_FLAGS "-x objective-c++"
+    )
+else()
+    # For non-macOS, add stub implementation if needed
+    # For now, SystemTrayManager has cross-platform stubs in .mm file
+endif()
+
 # TWS API source files
 file(GLOB TWS_API_SOURCES
     ${TWS_API_DIR}/source/cppclient/client/*.cpp
@@ -214,11 +229,23 @@ if(APPLE)
         target_link_libraries(${PROJECT_NAME} ${CARBON_FRAMEWORK})
     endif()
 
-    # Copy icon to bundle resources
+    # Link Cocoa framework for system tray
+    find_library(COCOA_FRAMEWORK Cocoa)
+    if(COCOA_FRAMEWORK)
+        target_link_libraries(${PROJECT_NAME} ${COCOA_FRAMEWORK})
+    endif()
+
+    # Copy icons to bundle resources
     set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/icon.icns PROPERTIES
         MACOSX_PACKAGE_LOCATION Resources
     )
-    target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/resources/icon.icns)
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/tray-icon.icns PROPERTIES
+        MACOSX_PACKAGE_LOCATION Resources
+    )
+    target_sources(${PROJECT_NAME} PRIVATE
+        ${CMAKE_SOURCE_DIR}/resources/icon.icns
+        ${CMAKE_SOURCE_DIR}/resources/tray-icon.icns
+    )
 endif()
 
 if(WIN32)

@@ -66,6 +66,8 @@ signals:
     void tickerDataLoaded(const QString& symbol);
     void barsUpdated(const QString& symbol, Timeframe timeframe);
     void currentBarUpdated(const QString& symbol, const CandleBar& bar); // For live tick updates (not in cache)
+    void noPriceUpdate(const QString& symbol); // Emitted when no price update received for previous bar
+    void priceUpdateReceived(const QString& symbol); // Emitted when price update received
 
 private slots:
     void onHistoricalBarReceived(int reqId, long time, double open, double high, double low, double close, long volume);
@@ -104,6 +106,11 @@ private:
     // For aggregating 5s bars into larger timeframes
     CandleBar m_aggregationBar;
     bool m_isAggregating;
+
+    // For tracking price updates per candle (for tray blinking)
+    qint64 m_lastPriceUpdateTime;
+    qint64 m_currentBarStartTime;
+    bool m_hasPriceUpdateForCurrentBar;
 };
 
 #endif // TICKERDATAMANAGER_H

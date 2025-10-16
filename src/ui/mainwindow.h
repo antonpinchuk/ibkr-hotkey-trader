@@ -20,6 +20,7 @@ class ToastNotification;
 class DebugLogDialog;
 class TickerDataManager;
 class GlobalHotkeyManager;
+class SystemTrayManager;
 
 class MainWindow : public QMainWindow
 {
@@ -131,6 +132,7 @@ private:
     TradingManager *m_tradingManager;
     TickerDataManager *m_tickerDataManager;
     GlobalHotkeyManager *m_globalHotkeyManager;
+    SystemTrayManager *m_systemTrayManager;
 
     QString m_currentSymbol;
     QString m_previousSymbol;  // Track previous symbol for rollback on error
