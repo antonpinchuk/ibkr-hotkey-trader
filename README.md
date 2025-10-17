@@ -353,9 +353,11 @@ The Remote Control Server provides REST JSON endpoints for managing tickers remo
 
 **API Endpoints:**
 
-1. Add Ticker - POST /ticker
-2. Select Ticker - PUT /ticker
-3. Delete Ticker - DELETE /ticker
+1. Add ticker - POST /ticker
+2. Select ticker - PUT /ticker
+3. Delete ticker - DELETE /ticker
+4. Get tickers - GET /ticker
+5. Get ticker - GET /ticker/$symbol
 
 Response codes:
 - `200 OK` - Ticker selected
@@ -394,6 +396,15 @@ curl -X PUT http://127.0.0.1:8496/ticker \
 curl -X DELETE http://127.0.0.1:8496/ticker \
   -H "Content-Type: application/json" \
   -d '{"symbol": "MSFT", "exchange": "NASDAQ"}'
+
+# Отримати всі тікери
+curl http://127.0.0.1:8496/ticker
+
+# Отримати конкретний тікер
+curl http://127.0.0.1:8496/ticker/TSLA
+
+# Отримати неіснуючий тікер (поверне 404)
+curl http://127.0.0.1:8496/ticker/INVALID
 ```
 
 **Note:** The server listens on all network interfaces (0.0.0.0), so it can be accessed from other devices on the same network. Use your computer's IP address instead of 127.0.0.1 when accessing from another device.

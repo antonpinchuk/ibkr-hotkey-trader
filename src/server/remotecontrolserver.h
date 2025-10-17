@@ -50,6 +50,8 @@ private:
     void handlePostTicker(QTcpSocket* socket, const QJsonObject& body);
     void handlePutTicker(QTcpSocket* socket, const QJsonObject& body);
     void handleDeleteTicker(QTcpSocket* socket, const QJsonObject& body);
+    void handleGetTicker(QTcpSocket* socket);
+    void handleGetTickerBySymbol(QTcpSocket* socket, const QString& symbol);
 
     QTcpServer* m_server;
     IBKRClient* m_client;

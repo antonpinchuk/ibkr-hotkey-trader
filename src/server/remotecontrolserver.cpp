@@ -5,6 +5,7 @@
 #include "utils/logger.h"
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QHostAddress>
 
 RemoteControlServer::RemoteControlServer(IBKRClient* client, TickerDataManager* tickerDataManager,
@@ -91,12 +92,23 @@ void RemoteControlServer::onReadyRead()
 
     // Route request
     if (request.path == "/ticker") {
-        if (request.method == "POST") {
+        if (request.method == "GET") {
+            handleGetTicker(socket);
+        } else if (request.method == "POST") {
             handlePostTicker(socket, request.body);
         } else if (request.method == "PUT") {
             handlePutTicker(socket, request.body);
         } else if (request.method == "DELETE") {
             handleDeleteTicker(socket, request.body);
+        } else {
+            sendHttpResponse(socket, 405, "Method Not Allowed");
+            socket->disconnectFromHost();
+        }
+    } else if (request.path.startsWith("/ticker/")) {
+        // Extract symbol from path: /ticker/:symbol
+        QString symbol = request.path.mid(8).toUpper(); // Skip "/ticker/"
+        if (request.method == "GET") {
+            handleGetTickerBySymbol(socket, symbol);
         } else {
             sendHttpResponse(socket, 405, "Method Not Allowed");
             socket->disconnectFromHost();
@@ -147,22 +159,27 @@ RemoteControlServer::HttpRequest RemoteControlServer::parseHttpRequest(const QBy
         }
     }
 
-    // Parse JSON body if exists
+    // Parse JSON body if exists (for POST, PUT, DELETE methods)
     if (emptyLineIndex >= 0 && emptyLineIndex + 1 < lines.size()) {
         QString bodyStr = lines.mid(emptyLineIndex + 1).join("\r\n");
-        QJsonDocument jsonDoc = QJsonDocument::fromJson(bodyStr.toUtf8());
 
-        if (jsonDoc.isNull() || !jsonDoc.isObject()) {
-            request.errorMessage = "Invalid JSON";
-            return request;
-        }
+        if (!bodyStr.trimmed().isEmpty()) {
+            QJsonDocument jsonDoc = QJsonDocument::fromJson(bodyStr.toUtf8());
 
-        request.body = jsonDoc.object();
+            if (jsonDoc.isNull() || !jsonDoc.isObject()) {
+                request.errorMessage = "Invalid JSON";
+                return request;
+            }
 
-        // Validate required fields
-        if (!request.body.contains("symbol") || !request.body.contains("exchange")) {
-            request.errorMessage = "Missing required fields: symbol, exchange";
-            return request;
+            request.body = jsonDoc.object();
+
+            // Validate required fields only for POST, PUT, DELETE methods
+            if (request.method != "GET") {
+                if (!request.body.contains("symbol") || !request.body.contains("exchange")) {
+                    request.errorMessage = "Missing required fields: symbol, exchange";
+                    return request;
+                }
+            }
         }
     }
 
@@ -326,5 +343,59 @@ void RemoteControlServer::onSymbolSearchResults(int reqId, const QList<QPair<QSt
     LOG_DEBUG(QString("Remote Control: POST /ticker - symbol=%1, exchange=%2; 201: Ticker added")
               .arg(matchedSymbol).arg(matchedExchange));
     sendHttpResponse(socket, 201, "Created");
+    socket->disconnectFromHost();
+}
+
+void RemoteControlServer::handleGetTicker(QTcpSocket* socket)
+{
+    QStringList symbols = m_tickerList->getAllSymbols();
+
+    // Build JSON array of tickers
+    QJsonArray tickersArray;
+    for (const QString& symbol : symbols) {
+        QString exchange = m_tickerDataManager->getExchange(symbol);
+        QJsonObject tickerObj;
+        tickerObj["symbol"] = symbol;
+        tickerObj["exchange"] = exchange;
+        tickersArray.append(tickerObj);
+    }
+
+    LOG_DEBUG(QString("Remote Control: GET /ticker - 200: Returned %1 tickers").arg(symbols.size()));
+
+    // Send response with array in body
+    QString response;
+    response += "HTTP/1.1 200 OK\r\n";
+    response += "Content-Type: application/json\r\n";
+    response += "Access-Control-Allow-Origin: *\r\n";
+    response += "Connection: close\r\n";
+
+    QByteArray bodyData = QJsonDocument(tickersArray).toJson(QJsonDocument::Compact);
+    response += QString("Content-Length: %1\r\n").arg(bodyData.size());
+    response += "\r\n";
+
+    socket->write(response.toUtf8());
+    socket->write(bodyData);
+    socket->flush();
+    socket->disconnectFromHost();
+}
+
+void RemoteControlServer::handleGetTickerBySymbol(QTcpSocket* socket, const QString& symbol)
+{
+    QStringList symbols = m_tickerList->getAllSymbols();
+
+    if (!symbols.contains(symbol)) {
+        LOG_DEBUG(QString("Remote Control: GET /ticker/%1 - 404: Ticker not found").arg(symbol));
+        sendHttpResponse(socket, 404, "Not Found", QJsonObject(), "Ticker not found");
+        socket->disconnectFromHost();
+        return;
+    }
+
+    QString exchange = m_tickerDataManager->getExchange(symbol);
+    QJsonObject tickerObj;
+    tickerObj["symbol"] = symbol;
+    tickerObj["exchange"] = exchange;
+
+    LOG_DEBUG(QString("Remote Control: GET /ticker/%1 - 200: OK").arg(symbol));
+    sendHttpResponse(socket, 200, "OK", tickerObj);
     socket->disconnectFromHost();
 }
