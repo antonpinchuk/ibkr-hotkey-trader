@@ -38,9 +38,16 @@ public:
     void requestHistoricalData(int reqId, const QString& symbol, const QString& endDateTime, const QString& duration, const QString& barSize);
 
     // Orders
+    // Place new order (generates new orderId)
     int placeOrder(const QString& symbol, const QString& action, int quantity, double limitPrice,
                    const QString& orderType = "LMT", const QString& tif = "DAY", bool outsideRth = false,
                    const QString& primaryExchange = QString());
+
+    // Update existing order (uses provided orderId)
+    void updateOrder(int orderId, const QString& symbol, const QString& action, int quantity, double limitPrice,
+                     const QString& orderType = "LMT", const QString& tif = "DAY", bool outsideRth = false,
+                     const QString& primaryExchange = QString());
+
     void cancelOrder(int orderId);
     void cancelAllOrders();
 

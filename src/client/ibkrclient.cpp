@@ -349,6 +349,65 @@ int IBKRClient::placeOrder(const QString& symbol, const QString& action, int qua
     return orderId;
 }
 
+void IBKRClient::updateOrder(int orderId, const QString& symbol, const QString& action, int quantity, double limitPrice,
+                              const QString& orderType, const QString& tif, bool outsideRth, const QString& primaryExchange)
+{
+    if (!m_socket->isConnected()) {
+        LOG_WARNING("Cannot update order - not connected to TWS");
+        return;
+    }
+
+    LOG_INFO(QString("IBKRClient::updateOrder - orderId=%1, symbol=%2, action=%3, qty=%4, limitPrice=%5, type=%6, tif=%7, outsideRth=%8, primaryExch=%9")
+        .arg(orderId).arg(symbol).arg(action).arg(quantity).arg(limitPrice, 0, 'f', 2).arg(orderType).arg(tif).arg(outsideRth).arg(primaryExchange));
+
+    Contract contract;
+    contract.symbol = symbol.toStdString();
+    contract.secType = "STK";
+    contract.exchange = "SMART";
+
+    // Use provided primaryExchange if available, otherwise default to ISLAND (NASDAQ)
+    if (!primaryExchange.isEmpty()) {
+        contract.primaryExchange = primaryExchange.toStdString();
+    } else {
+        contract.primaryExchange = "ISLAND";  // Default to NASDAQ
+    }
+
+    contract.currency = "USD";
+
+    // Create TWS API Order (not our TradeOrder)
+    Order order;
+
+    // Set all required fields explicitly
+    order.action = action.toStdString();
+    order.totalQuantity = DecimalFunctions::doubleToDecimal((double)quantity);
+    order.orderType = orderType.toStdString();
+    order.tif = tif.toStdString();
+    order.outsideRth = outsideRth;
+
+    // Set limit price for limit orders
+    if (orderType == "LMT") {
+        order.lmtPrice = limitPrice;
+    } else {
+        order.lmtPrice = 0;
+    }
+
+    // Initialize other fields to prevent uninitialized memory issues
+    order.auxPrice = 0;
+    order.parentId = 0;
+    order.transmit = true;
+    order.displaySize = 0;
+    order.goodAfterTime = "";
+    order.goodTillDate = "";
+
+    LOG_INFO(QString("Updating order in TWS: orderId=%1, action=%2, qty=%3, type=%4, lmt=%5, tif=%6")
+        .arg(orderId).arg(QString::fromStdString(order.action)).arg(quantity)
+        .arg(QString::fromStdString(order.orderType)).arg(order.lmtPrice, 0, 'f', 2)
+        .arg(QString::fromStdString(order.tif)));
+
+    // Use existing orderId to update order in TWS
+    m_socket->placeOrder(orderId, contract, order);
+}
+
 void IBKRClient::cancelOrder(int orderId)
 {
     if (!m_socket->isConnected()) return;

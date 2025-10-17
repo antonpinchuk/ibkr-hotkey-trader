@@ -300,11 +300,22 @@ void TradingManager::onOrderConfirmed(int orderId, const QString& symbol, const 
     // Check if we have this order in pending orders
     if (m_orders.contains(orderId)) {
         TradeOrder& order = m_orders[orderId];
+        bool isUpdate = (order.quantity != quantity || qAbs(order.price - price) > 0.01);
+
+        // Update order fields (important for order updates!)
+        order.quantity = quantity;
+        order.price = price;
         order.permId = permId; // Store permId for sorting
         order.timestamp = QDateTime::currentDateTime(); // Update timestamp when confirmed by TWS
         order.sortOrder = order.timestamp.toMSecsSinceEpoch(); // Update sortOrder
-        // Now emit to UI - order is confirmed by TWS
-        emit orderPlaced(order);
+
+        // Emit appropriate signal based on whether this is a new order or update
+        if (isUpdate) {
+            emit orderUpdated(order);
+        } else {
+            // New order confirmation
+            emit orderPlaced(order);
+        }
     } else {
         LOG_WARNING(QString("Received confirmation for unknown order: %1").arg(orderId));
     }
@@ -485,10 +496,24 @@ void TradingManager::updatePendingOrder(int& pendingOrderId, const QString& acti
         }
     }
 
-    // Cancel old order
-    m_client->cancelOrder(pendingOrderId);
-    m_orders.remove(pendingOrderId);
+    LOG_INFO(QString("Updating order %1: qty=%2, price=%3").arg(pendingOrderId).arg(quantity).arg(price, 0, 'f', 2));
 
-    // Place new order (this will update pendingOrderId via placeOrder)
-    pendingOrderId = placeOrder(action, quantity, price);
+    // Update order in TWS (uses same orderId - faster than cancel+create)
+    bool isRegularHours = isRegularTradingHours();
+    QString tif = isRegularHours ? "DAY" : "GTC";
+    bool outsideRth = !isRegularHours;
+
+    m_client->updateOrder(pendingOrderId, m_currentSymbol, action, quantity, price, "LMT", tif, outsideRth, m_currentExchange);
+
+    // Update order in memory - will be confirmed via onOrderStatusUpdated callback
+    if (m_orders.contains(pendingOrderId)) {
+        TradeOrder& order = m_orders[pendingOrderId];
+        order.quantity = quantity;
+        order.price = price;
+        order.timestamp = QDateTime::currentDateTime(); // Update timestamp
+        order.sortOrder = order.timestamp.toMSecsSinceEpoch();
+
+        // Emit update to UI immediately (optimistic update)
+        emit orderUpdated(order);
+    }
 }
