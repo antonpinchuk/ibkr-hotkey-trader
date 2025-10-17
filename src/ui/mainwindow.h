@@ -84,7 +84,7 @@ private:
     void saveUIState();
 
     void showToast(const QString& message, const QString& type = "warning");
-    void enableTrading(bool enabled);
+    void updateTradingButtonsState();
 
     // UI Components
     QLabel *m_tickerLabel;
@@ -111,6 +111,25 @@ private:
 
     // Menu actions
     QAction *m_showCancelledOrdersAction;
+
+    // Trading menu actions
+    QAction *m_open100Action;
+    QAction *m_open50Action;
+    QAction *m_add5Action;
+    QAction *m_add10Action;
+    QAction *m_add15Action;
+    QAction *m_add20Action;
+    QAction *m_add25Action;
+    QAction *m_add30Action;
+    QAction *m_add35Action;
+    QAction *m_add40Action;
+    QAction *m_add45Action;
+    QAction *m_add50Action;
+    QAction *m_cancelAction;
+    QAction *m_close25Action;
+    QAction *m_close50Action;
+    QAction *m_close75Action;
+    QAction *m_close100Action;
 
     QToolBar *m_toolbar;
     QSplitter *m_mainSplitter;        // Left: ticker list, Right: everything else

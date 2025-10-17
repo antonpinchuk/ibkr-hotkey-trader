@@ -11,7 +11,8 @@
 OrderHistoryWidget::OrderHistoryWidget(QWidget *parent)
     : QWidget(parent),
       m_showCancelledAndZeroPositions(false),
-      m_currentSymbol("")
+      m_currentSymbol(""),
+      m_balance(0.0)
 {
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(0, 0, 0, 0);
@@ -216,6 +217,7 @@ void OrderHistoryWidget::setAccount(const QString& account)
 
 void OrderHistoryWidget::setBalance(double balance)
 {
+    m_balance = balance;
     m_totalBalance->setText(QString("Balance: $%1").arg(balance, 0, 'f', 2));
 }
 
@@ -732,4 +734,32 @@ void OrderHistoryWidget::updateCommission(int orderId, double commission)
 
     // Rebuild tables to show updated commission
     rebuildTables();
+}
+
+// Data access methods for trading button state logic
+double OrderHistoryWidget::getCurrentPrice(const QString& symbol) const
+{
+    return m_currentPrices.value(symbol, 0.0);
+}
+
+double OrderHistoryWidget::getCurrentPosition(const QString& symbol) const
+{
+    return m_positions.value(symbol).quantity;
+}
+
+double OrderHistoryWidget::getAvgCost(const QString& symbol) const
+{
+    return m_positions.value(symbol).avgCost;
+}
+
+double OrderHistoryWidget::getBalance() const
+{
+    return m_balance;
+}
+
+void OrderHistoryWidget::resetPrice(const QString& symbol)
+{
+    // Reset price to 0 when switching tickers
+    // This ensures trading buttons are disabled until first price tick arrives
+    m_currentPrices[symbol] = 0.0;
 }

@@ -84,7 +84,7 @@ void MainWindow::setupUI()
     setupPanels();
 
     // Initially disable trading until connected
-    enableTrading(false);
+    updateTradingButtonsState();
 }
 
 void MainWindow::setupMenuBar()
@@ -128,82 +128,82 @@ void MainWindow::setupMenuBar()
     QMenu *ordersMenu = menuBar()->addMenu("Orders");
 
     // Opening positions
-    QAction *open100Action = ordersMenu->addAction("Open 100%");
-    open100Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+O"));
-    connect(open100Action, &QAction::triggered, this, &MainWindow::onOpen100);
+    m_open100Action = ordersMenu->addAction("Open 100%");
+    m_open100Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+O"));
+    connect(m_open100Action, &QAction::triggered, this, &MainWindow::onOpen100);
 
-    QAction *open50Action = ordersMenu->addAction("Open 50%");
-    open50Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+P"));
-    connect(open50Action, &QAction::triggered, this, &MainWindow::onOpen50);
+    m_open50Action = ordersMenu->addAction("Open 50%");
+    m_open50Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+P"));
+    connect(m_open50Action, &QAction::triggered, this, &MainWindow::onOpen50);
 
     ordersMenu->addSeparator();
 
     // Adding to position
-    QAction *add5Action = ordersMenu->addAction("Add 5%");
-    add5Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+1"));
-    connect(add5Action, &QAction::triggered, this, &MainWindow::onAdd5);
+    m_add5Action = ordersMenu->addAction("Add 5%");
+    m_add5Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+1"));
+    connect(m_add5Action, &QAction::triggered, this, &MainWindow::onAdd5);
 
-    QAction *add10Action = ordersMenu->addAction("Add 10%");
-    add10Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+2"));
-    connect(add10Action, &QAction::triggered, this, &MainWindow::onAdd10);
+    m_add10Action = ordersMenu->addAction("Add 10%");
+    m_add10Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+2"));
+    connect(m_add10Action, &QAction::triggered, this, &MainWindow::onAdd10);
 
-    QAction *add15Action = ordersMenu->addAction("Add 15%");
-    add15Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+3"));
-    connect(add15Action, &QAction::triggered, this, &MainWindow::onAdd15);
+    m_add15Action = ordersMenu->addAction("Add 15%");
+    m_add15Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+3"));
+    connect(m_add15Action, &QAction::triggered, this, &MainWindow::onAdd15);
 
-    QAction *add20Action = ordersMenu->addAction("Add 20%");
-    add20Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+4"));
-    connect(add20Action, &QAction::triggered, this, &MainWindow::onAdd20);
+    m_add20Action = ordersMenu->addAction("Add 20%");
+    m_add20Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+4"));
+    connect(m_add20Action, &QAction::triggered, this, &MainWindow::onAdd20);
 
-    QAction *add25Action = ordersMenu->addAction("Add 25%");
-    add25Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+5"));
-    connect(add25Action, &QAction::triggered, this, &MainWindow::onAdd25);
+    m_add25Action = ordersMenu->addAction("Add 25%");
+    m_add25Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+5"));
+    connect(m_add25Action, &QAction::triggered, this, &MainWindow::onAdd25);
 
-    QAction *add30Action = ordersMenu->addAction("Add 30%");
-    add30Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+6"));
-    connect(add30Action, &QAction::triggered, this, &MainWindow::onAdd30);
+    m_add30Action = ordersMenu->addAction("Add 30%");
+    m_add30Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+6"));
+    connect(m_add30Action, &QAction::triggered, this, &MainWindow::onAdd30);
 
-    QAction *add35Action = ordersMenu->addAction("Add 35%");
-    add35Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+7"));
-    connect(add35Action, &QAction::triggered, this, &MainWindow::onAdd35);
+    m_add35Action = ordersMenu->addAction("Add 35%");
+    m_add35Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+7"));
+    connect(m_add35Action, &QAction::triggered, this, &MainWindow::onAdd35);
 
-    QAction *add40Action = ordersMenu->addAction("Add 40%");
-    add40Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+8"));
-    connect(add40Action, &QAction::triggered, this, &MainWindow::onAdd40);
+    m_add40Action = ordersMenu->addAction("Add 40%");
+    m_add40Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+8"));
+    connect(m_add40Action, &QAction::triggered, this, &MainWindow::onAdd40);
 
-    QAction *add45Action = ordersMenu->addAction("Add 45%");
-    add45Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+9"));
-    connect(add45Action, &QAction::triggered, this, &MainWindow::onAdd45);
+    m_add45Action = ordersMenu->addAction("Add 45%");
+    m_add45Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+9"));
+    connect(m_add45Action, &QAction::triggered, this, &MainWindow::onAdd45);
 
-    QAction *add50Action = ordersMenu->addAction("Add 50%");
-    add50Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+0"));
-    connect(add50Action, &QAction::triggered, this, &MainWindow::onAdd50);
+    m_add50Action = ordersMenu->addAction("Add 50%");
+    m_add50Action->setShortcut(QKeySequence("Shift+Ctrl+Alt+0"));
+    connect(m_add50Action, &QAction::triggered, this, &MainWindow::onAdd50);
 
     ordersMenu->addSeparator();
 
     // Cancel orders
-    QAction *cancelAction = ordersMenu->addAction("Cancel All Orders");
-    cancelAction->setShortcut(QKeySequence("Ctrl+Alt+Q"));
-    connect(cancelAction, &QAction::triggered, this, &MainWindow::onCancelOrders);
+    m_cancelAction = ordersMenu->addAction("Cancel All Orders");
+    m_cancelAction->setShortcut(QKeySequence("Ctrl+Alt+Q"));
+    connect(m_cancelAction, &QAction::triggered, this, &MainWindow::onCancelOrders);
 
     ordersMenu->addSeparator();
 
     // Closing positions
-    QAction *close25Action = ordersMenu->addAction("Close 25%");
-    close25Action->setShortcut(QKeySequence("Ctrl+Alt+V"));
-    connect(close25Action, &QAction::triggered, this, &MainWindow::onClose25);
+    m_close25Action = ordersMenu->addAction("Close 25%");
+    m_close25Action->setShortcut(QKeySequence("Ctrl+Alt+V"));
+    connect(m_close25Action, &QAction::triggered, this, &MainWindow::onClose25);
 
-    QAction *close50Action = ordersMenu->addAction("Close 50%");
-    close50Action->setShortcut(QKeySequence("Ctrl+Alt+C"));
-    connect(close50Action, &QAction::triggered, this, &MainWindow::onClose50);
+    m_close50Action = ordersMenu->addAction("Close 50%");
+    m_close50Action->setShortcut(QKeySequence("Ctrl+Alt+C"));
+    connect(m_close50Action, &QAction::triggered, this, &MainWindow::onClose50);
 
-    QAction *close75Action = ordersMenu->addAction("Close 75%");
-    close75Action->setShortcut(QKeySequence("Ctrl+Alt+X"));
-    connect(close75Action, &QAction::triggered, this, &MainWindow::onClose75);
+    m_close75Action = ordersMenu->addAction("Close 75%");
+    m_close75Action->setShortcut(QKeySequence("Ctrl+Alt+X"));
+    connect(m_close75Action, &QAction::triggered, this, &MainWindow::onClose75);
 
-    QAction *close100Action = ordersMenu->addAction("Close 100%");
-    close100Action->setShortcut(QKeySequence("Ctrl+Alt+Z"));
-    connect(close100Action, &QAction::triggered, this, &MainWindow::onClose100);
+    m_close100Action = ordersMenu->addAction("Close 100%");
+    m_close100Action->setShortcut(QKeySequence("Ctrl+Alt+Z"));
+    connect(m_close100Action, &QAction::triggered, this, &MainWindow::onClose100);
 
     // View menu
     QMenu *viewMenu = menuBar()->addMenu("View");
@@ -400,10 +400,12 @@ void MainWindow::setupConnections()
         // Update balance when NetLiquidation value is received
         if (key == "NetLiquidation" && account == m_ibkrClient->activeAccount()) {
             m_orderHistory->setBalance(value.toDouble());
+            updateTradingButtonsState();
         }
     });
     connect(m_ibkrClient, &IBKRClient::positionUpdated, this, [this](const QString& account, const QString& symbol, double position, double avgCost, double marketPrice, double unrealizedPNL) {
         m_orderHistory->updatePosition(symbol, position, avgCost, marketPrice, unrealizedPNL);
+        updateTradingButtonsState();
     });
     connect(m_ibkrClient, &IBKRClient::orderFilled, this, [this](int orderId, const QString& symbol, const QString& side, double fillPrice, int fillQuantity) {
         m_orderHistory->updatePositionQuantityAfterFill(symbol, side, fillQuantity);
@@ -587,6 +589,12 @@ void MainWindow::onTickerActivated(const QString& symbol)
     m_systemTrayManager->setTickerSymbol(symbol);
     m_systemTrayManager->stopBlinking();
 
+    // Reset price to 0 when switching tickers (buttons will be disabled until first price tick)
+    m_orderHistory->resetPrice(symbol);
+
+    // Update trading buttons state
+    updateTradingButtonsState();
+
     // Update TradingManager with exchange info
     QString exchange = m_tickerDataManager->getExchange(symbol);
     if (!exchange.isEmpty()) {
@@ -605,6 +613,11 @@ void MainWindow::onPriceUpdated(const QString& symbol, double price, double chan
     // Update price lines on chart (immediate!)
     if (symbol == m_currentSymbol) {
         m_chart->updatePriceLines(bid, ask, mid);
+    }
+
+    // Update trading buttons state (price tick event)
+    if (symbol == m_currentSymbol) {
+        updateTradingButtonsState();
     }
 }
 
@@ -648,7 +661,7 @@ void MainWindow::onSymbolDelete(const QString& symbol)
             m_systemTrayManager->stopBlinking();
 
             // Disable trading buttons
-            enableTrading(false);
+            updateTradingButtonsState();
         }
     }
 }
@@ -698,14 +711,14 @@ void MainWindow::onConnected()
 {
     LOG_INFO("Connected to TWS");
     showToast("Connected to TWS", "success");
-    enableTrading(true);
+    updateTradingButtonsState();
 }
 
 void MainWindow::onDisconnected()
 {
     // Don't log here - already logged in IBKRClient
     showToast("Disconnected from TWS. Reconnecting...", "error");
-    enableTrading(false);
+    updateTradingButtonsState();
     m_orderHistory->setBalance(0.0);
 }
 
@@ -855,25 +868,126 @@ void MainWindow::showToast(const QString& message, const QString& type)
     ToastNotification::show(this, message, toastType);
 }
 
-void MainWindow::enableTrading(bool enabled)
+void MainWindow::updateTradingButtonsState()
 {
-    m_btnOpen100->setEnabled(enabled);
-    m_btnOpen50->setEnabled(enabled);
-    m_btnAdd5->setEnabled(enabled);
-    m_btnAdd10->setEnabled(enabled);
-    m_btnAdd15->setEnabled(enabled);
-    m_btnAdd20->setEnabled(enabled);
-    m_btnAdd25->setEnabled(enabled);
-    m_btnAdd30->setEnabled(enabled);
-    m_btnAdd35->setEnabled(enabled);
-    m_btnAdd40->setEnabled(enabled);
-    m_btnAdd45->setEnabled(enabled);
-    m_btnAdd50->setEnabled(enabled);
-    m_btnCancel->setEnabled(enabled);
-    m_btnClose25->setEnabled(enabled);
-    m_btnClose50->setEnabled(enabled);
-    m_btnClose75->setEnabled(enabled);
-    m_btnClose100->setEnabled(enabled);
+    // Check if connected to TWS and have active symbol
+    bool isConnected = m_ibkrClient && m_ibkrClient->isConnected();
+    bool hasSymbol = !m_currentSymbol.isEmpty();
+
+    // If not connected or no symbol - disable all buttons and menu actions except Cancel
+    if (!isConnected || !hasSymbol) {
+        // Buttons
+        m_btnOpen100->setEnabled(false);
+        m_btnOpen50->setEnabled(false);
+        m_btnAdd5->setEnabled(false);
+        m_btnAdd10->setEnabled(false);
+        m_btnAdd15->setEnabled(false);
+        m_btnAdd20->setEnabled(false);
+        m_btnAdd25->setEnabled(false);
+        m_btnAdd30->setEnabled(false);
+        m_btnAdd35->setEnabled(false);
+        m_btnAdd40->setEnabled(false);
+        m_btnAdd45->setEnabled(false);
+        m_btnAdd50->setEnabled(false);
+        m_btnClose25->setEnabled(false);
+        m_btnClose50->setEnabled(false);
+        m_btnClose75->setEnabled(false);
+        m_btnClose100->setEnabled(false);
+        m_btnCancel->setEnabled(true); // Always enabled
+
+        // Menu actions
+        m_open100Action->setEnabled(false);
+        m_open50Action->setEnabled(false);
+        m_add5Action->setEnabled(false);
+        m_add10Action->setEnabled(false);
+        m_add15Action->setEnabled(false);
+        m_add20Action->setEnabled(false);
+        m_add25Action->setEnabled(false);
+        m_add30Action->setEnabled(false);
+        m_add35Action->setEnabled(false);
+        m_add40Action->setEnabled(false);
+        m_add45Action->setEnabled(false);
+        m_add50Action->setEnabled(false);
+        m_close25Action->setEnabled(false);
+        m_close50Action->setEnabled(false);
+        m_close75Action->setEnabled(false);
+        m_close100Action->setEnabled(false);
+        m_cancelAction->setEnabled(true); // Always enabled
+        return;
+    }
+
+    // Get current data
+    double price = m_orderHistory->getCurrentPrice(m_currentSymbol);
+    double balance = m_orderHistory->getBalance();
+    double position = m_tradingManager->getCurrentPosition();
+
+    // Basic requirements
+    bool hasPrice = (price > 0.0);
+    bool hasBalance = (balance > 0.0);
+    bool hasPosition = (position > 0.0);
+    bool hasNoPosition = (position == 0.0);
+
+    // Open buttons: enabled ONLY if NO position AND has price AND balance
+    // (From REQUIREMENTS: "Спрацює тільки якщо немає відкритих позицій")
+    bool canOpen = hasNoPosition && hasPrice && hasBalance;
+    m_btnOpen100->setEnabled(canOpen);
+    m_btnOpen50->setEnabled(canOpen);
+    m_open100Action->setEnabled(canOpen);
+    m_open50Action->setEnabled(canOpen);
+
+    // Add buttons: enabled if HAS position AND price AND balance AND doesn't exceed 100% budget
+    // (From REQUIREMENTS: "Спрацює тільки коли вже є відкриті позиції" + check budget limit)
+    bool canAdd5 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(5);
+    bool canAdd10 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(10);
+    bool canAdd15 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(15);
+    bool canAdd20 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(20);
+    bool canAdd25 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(25);
+    bool canAdd30 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(30);
+    bool canAdd35 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(35);
+    bool canAdd40 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(40);
+    bool canAdd45 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(45);
+    bool canAdd50 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(50);
+
+    m_btnAdd5->setEnabled(canAdd5);
+    m_btnAdd10->setEnabled(canAdd10);
+    m_btnAdd15->setEnabled(canAdd15);
+    m_btnAdd20->setEnabled(canAdd20);
+    m_btnAdd25->setEnabled(canAdd25);
+    m_btnAdd30->setEnabled(canAdd30);
+    m_btnAdd35->setEnabled(canAdd35);
+    m_btnAdd40->setEnabled(canAdd40);
+    m_btnAdd45->setEnabled(canAdd45);
+    m_btnAdd50->setEnabled(canAdd50);
+    m_add5Action->setEnabled(canAdd5);
+    m_add10Action->setEnabled(canAdd10);
+    m_add15Action->setEnabled(canAdd15);
+    m_add20Action->setEnabled(canAdd20);
+    m_add25Action->setEnabled(canAdd25);
+    m_add30Action->setEnabled(canAdd30);
+    m_add35Action->setEnabled(canAdd35);
+    m_add40Action->setEnabled(canAdd40);
+    m_add45Action->setEnabled(canAdd45);
+    m_add50Action->setEnabled(canAdd50);
+
+    // Close buttons: enabled if has position AND floor(position * %) >= 1
+    // (From REQUIREMENTS: "Ті кнопки неактивні що створять округлену заявку менше однієї акції")
+    bool canClose25 = hasPosition && m_tradingManager->canClosePercentage(25);
+    bool canClose50 = hasPosition && m_tradingManager->canClosePercentage(50);
+    bool canClose75 = hasPosition && m_tradingManager->canClosePercentage(75);
+    bool canClose100 = hasPosition && m_tradingManager->canClosePercentage(100);
+
+    m_btnClose25->setEnabled(canClose25);
+    m_btnClose50->setEnabled(canClose50);
+    m_btnClose75->setEnabled(canClose75);
+    m_btnClose100->setEnabled(canClose100);
+    m_close25Action->setEnabled(canClose25);
+    m_close50Action->setEnabled(canClose50);
+    m_close75Action->setEnabled(canClose75);
+    m_close100Action->setEnabled(canClose100);
+
+    // Cancel: always enabled (will do nothing if no pending orders)
+    m_btnCancel->setEnabled(true);
+    m_cancelAction->setEnabled(true);
 }
 
 void MainWindow::restoreUIState()

@@ -27,6 +27,13 @@ public:
 
     double getCurrentPosition() const;
     double getPendingBuyQuantity() const;
+    double getPendingSellQuantity() const;
+
+    // Helper methods for button state calculation
+    double getPositionPercentageOfBudget() const; // Returns % of budget that current position occupies
+    double getPendingBuyPercentageOfBudget() const; // Returns % of budget that pending buy orders occupy
+    bool canAddPercentage(int percentage) const; // Check if can add X% without exceeding 100% budget
+    bool canClosePercentage(int percentage) const; // Check if floor(position * %) >= 1
 
 signals:
     void orderPlaced(const TradeOrder& order);

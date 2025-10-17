@@ -34,6 +34,13 @@ public:
     void setShowCancelledAndZeroPositions(bool show);
     void setCurrentSymbol(const QString& symbol); // Set current symbol for Current tab filtering
 
+    // Data access for trading button state logic
+    double getCurrentPrice(const QString& symbol) const;
+    double getCurrentPosition(const QString& symbol) const; // Returns quantity (positive for long, negative for short)
+    double getAvgCost(const QString& symbol) const;
+    double getBalance() const;
+    void resetPrice(const QString& symbol); // Reset price to 0 when switching tickers
+
 public slots:
     void addOrder(const TradeOrder& order);
     void updateOrder(const TradeOrder& order);
@@ -90,6 +97,7 @@ private:
 
     bool m_showCancelledAndZeroPositions;
     QString m_currentSymbol; // Current symbol for filtering Current tab
+    double m_balance; // Account balance
 };
 
 #endif // ORDERHISTORYWIDGET_H

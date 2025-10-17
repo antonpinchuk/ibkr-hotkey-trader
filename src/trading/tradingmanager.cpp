@@ -167,8 +167,11 @@ void TradingManager::closePosition(int percentage)
     }
 
     // Calculate shares to sell (percentage of current position, not budget)
+    // Use floor to match REQUIREMENTS: "Ті кнопки неактивні що створять округлену заявку менше однієї акції"
     int sharesToSell = static_cast<int>(currentPosition * percentage / 100.0);
-    if (sharesToSell <= 0) {
+    if (sharesToSell < 1) {
+        LOG_WARNING(QString("Cannot close %1%: floor(position * %%) = %2 < 1").arg(percentage).arg(sharesToSell));
+        emit warning(QString("Cannot close %1%: would result in less than 1 share").arg(percentage));
         return;
     }
 
@@ -217,6 +220,57 @@ double TradingManager::getPendingBuyQuantity() const
         }
     }
     return 0.0;
+}
+
+double TradingManager::getPendingSellQuantity() const
+{
+    if (m_pendingSellOrderId >= 0 && m_orders.contains(m_pendingSellOrderId)) {
+        const TradeOrder& order = m_orders[m_pendingSellOrderId];
+        if (order.isPending()) {
+            return order.quantity;
+        }
+    }
+    return 0.0;
+}
+
+double TradingManager::getPositionPercentageOfBudget() const
+{
+    double position = getCurrentPosition();
+    if (position <= 0 || m_currentPrice <= 0) {
+        return 0.0;
+    }
+    double budget = getBudget();
+    if (budget <= 0) {
+        return 0.0;
+    }
+    return (position * m_currentPrice / budget) * 100.0;
+}
+
+double TradingManager::getPendingBuyPercentageOfBudget() const
+{
+    double pendingBuy = getPendingBuyQuantity();
+    if (pendingBuy <= 0 || m_currentPrice <= 0) {
+        return 0.0;
+    }
+    double budget = getBudget();
+    if (budget <= 0) {
+        return 0.0;
+    }
+    return (pendingBuy * m_currentPrice / budget) * 100.0;
+}
+
+bool TradingManager::canAddPercentage(int percentage) const
+{
+    double positionPct = getPositionPercentageOfBudget();
+    double pendingBuyPct = getPendingBuyPercentageOfBudget();
+    return (positionPct + pendingBuyPct + percentage) <= 100.0;
+}
+
+bool TradingManager::canClosePercentage(int percentage) const
+{
+    double position = getCurrentPosition();
+    int sharesToSell = static_cast<int>(position * percentage / 100.0); // floor
+    return sharesToSell >= 1;
 }
 
 void TradingManager::onTickByTickUpdated(int reqId, double price, double bidPrice, double askPrice)
