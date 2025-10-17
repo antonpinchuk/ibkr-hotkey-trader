@@ -56,12 +56,12 @@ void SettingsDialog::setupUI()
     m_hotkeyOpen100 = new QSpinBox();
     m_hotkeyOpen100->setRange(1, 100);
     m_hotkeyOpen100->setSuffix("%");
-    hotkeysLayout->addRow("Cmd+O:", m_hotkeyOpen100);
+    hotkeysLayout->addRow("Shift+Ctrl+Alt+O:", m_hotkeyOpen100);
 
     m_hotkeyOpen50 = new QSpinBox();
     m_hotkeyOpen50->setRange(1, 100);
     m_hotkeyOpen50->setSuffix("%");
-    hotkeysLayout->addRow("Cmd+P:", m_hotkeyOpen50);
+    hotkeysLayout->addRow("Shift+Ctrl+Alt+P:", m_hotkeyOpen50);
 
     QLabel *addLabel = new QLabel("<b>Adding to Position:</b>");
     hotkeysLayout->addRow(addLabel);
@@ -69,52 +69,52 @@ void SettingsDialog::setupUI()
     m_hotkeyAdd1 = new QSpinBox();
     m_hotkeyAdd1->setRange(1, 100);
     m_hotkeyAdd1->setSuffix("%");
-    hotkeysLayout->addRow("Cmd+1:", m_hotkeyAdd1);
+    hotkeysLayout->addRow("Shift+Ctrl+Alt+1:", m_hotkeyAdd1);
 
     m_hotkeyAdd2 = new QSpinBox();
     m_hotkeyAdd2->setRange(1, 100);
     m_hotkeyAdd2->setSuffix("%");
-    hotkeysLayout->addRow("Cmd+2:", m_hotkeyAdd2);
+    hotkeysLayout->addRow("Shift+Ctrl+Alt+2:", m_hotkeyAdd2);
 
     m_hotkeyAdd3 = new QSpinBox();
     m_hotkeyAdd3->setRange(1, 100);
     m_hotkeyAdd3->setSuffix("%");
-    hotkeysLayout->addRow("Cmd+3:", m_hotkeyAdd3);
+    hotkeysLayout->addRow("Shift+Ctrl+Alt+3:", m_hotkeyAdd3);
 
     m_hotkeyAdd4 = new QSpinBox();
     m_hotkeyAdd4->setRange(1, 100);
     m_hotkeyAdd4->setSuffix("%");
-    hotkeysLayout->addRow("Cmd+4:", m_hotkeyAdd4);
+    hotkeysLayout->addRow("Shift+Ctrl+Alt+4:", m_hotkeyAdd4);
 
     m_hotkeyAdd5 = new QSpinBox();
     m_hotkeyAdd5->setRange(1, 100);
     m_hotkeyAdd5->setSuffix("%");
-    hotkeysLayout->addRow("Cmd+5:", m_hotkeyAdd5);
+    hotkeysLayout->addRow("Shift+Ctrl+Alt+5:", m_hotkeyAdd5);
 
     m_hotkeyAdd6 = new QSpinBox();
     m_hotkeyAdd6->setRange(1, 100);
     m_hotkeyAdd6->setSuffix("%");
-    hotkeysLayout->addRow("Cmd+6:", m_hotkeyAdd6);
+    hotkeysLayout->addRow("Shift+Ctrl+Alt+6:", m_hotkeyAdd6);
 
     m_hotkeyAdd7 = new QSpinBox();
     m_hotkeyAdd7->setRange(1, 100);
     m_hotkeyAdd7->setSuffix("%");
-    hotkeysLayout->addRow("Cmd+7:", m_hotkeyAdd7);
+    hotkeysLayout->addRow("Shift+Ctrl+Alt+7:", m_hotkeyAdd7);
 
     m_hotkeyAdd8 = new QSpinBox();
     m_hotkeyAdd8->setRange(1, 100);
     m_hotkeyAdd8->setSuffix("%");
-    hotkeysLayout->addRow("Cmd+8:", m_hotkeyAdd8);
+    hotkeysLayout->addRow("Shift+Ctrl+Alt+8:", m_hotkeyAdd8);
 
     m_hotkeyAdd9 = new QSpinBox();
     m_hotkeyAdd9->setRange(1, 100);
     m_hotkeyAdd9->setSuffix("%");
-    hotkeysLayout->addRow("Cmd+9:", m_hotkeyAdd9);
+    hotkeysLayout->addRow("Shift+Ctrl+Alt+9:", m_hotkeyAdd9);
 
     m_hotkeyAdd0 = new QSpinBox();
     m_hotkeyAdd0->setRange(1, 100);
     m_hotkeyAdd0->setSuffix("%");
-    hotkeysLayout->addRow("Cmd+0:", m_hotkeyAdd0);
+    hotkeysLayout->addRow("Shift+Ctrl+Alt+0:", m_hotkeyAdd0);
 
     QLabel *closeLabel = new QLabel("<b>Closing Positions:</b>");
     hotkeysLayout->addRow(closeLabel);
@@ -122,39 +122,65 @@ void SettingsDialog::setupUI()
     m_hotkeyClose25 = new QSpinBox();
     m_hotkeyClose25->setRange(1, 100);
     m_hotkeyClose25->setSuffix("%");
-    hotkeysLayout->addRow("Cmd+V:", m_hotkeyClose25);
+    hotkeysLayout->addRow("Ctrl+Alt+V:", m_hotkeyClose25);
 
     m_hotkeyClose50 = new QSpinBox();
     m_hotkeyClose50->setRange(1, 100);
     m_hotkeyClose50->setSuffix("%");
-    hotkeysLayout->addRow("Cmd+C:", m_hotkeyClose50);
+    hotkeysLayout->addRow("Ctrl+Alt+C:", m_hotkeyClose50);
 
     m_hotkeyClose75 = new QSpinBox();
     m_hotkeyClose75->setRange(1, 100);
     m_hotkeyClose75->setSuffix("%");
-    hotkeysLayout->addRow("Cmd+X:", m_hotkeyClose75);
+    hotkeysLayout->addRow("Ctrl+Alt+X:", m_hotkeyClose75);
 
     m_hotkeyClose100 = new QSpinBox();
     m_hotkeyClose100->setRange(1, 100);
     m_hotkeyClose100->setSuffix("%");
-    hotkeysLayout->addRow("Cmd+Z:", m_hotkeyClose100);
+    hotkeysLayout->addRow("Ctrl+Alt+Z:", m_hotkeyClose100);
 
     m_tabWidget->addTab(hotkeysTab, "Hotkeys");
 
     // Connection tab
     QWidget *connectionTab = new QWidget();
-    QFormLayout *connectionLayout = new QFormLayout(connectionTab);
+    QVBoxLayout *connectionMainLayout = new QVBoxLayout(connectionTab);
+
+    // IBKR TWS Client section
+    QLabel *twsLabel = new QLabel("<b>IBKR TWS Client</b>");
+    connectionMainLayout->addWidget(twsLabel);
+
+    QWidget *twsWidget = new QWidget();
+    QFormLayout *twsLayout = new QFormLayout(twsWidget);
+    twsLayout->setContentsMargins(20, 0, 0, 0);
 
     m_hostEdit = new QLineEdit();
-    connectionLayout->addRow("Host:", m_hostEdit);
+    twsLayout->addRow("Host:", m_hostEdit);
 
     m_portSpin = new QSpinBox();
     m_portSpin->setRange(1, 65535);
-    connectionLayout->addRow("Port:", m_portSpin);
+    twsLayout->addRow("Port:", m_portSpin);
 
     m_clientIdSpin = new QSpinBox();
     m_clientIdSpin->setRange(0, 999);  // 0 is required for binding manual TWS orders
-    connectionLayout->addRow("Client ID:", m_clientIdSpin);
+    twsLayout->addRow("Client ID:", m_clientIdSpin);
+
+    connectionMainLayout->addWidget(twsWidget);
+    connectionMainLayout->addSpacing(20);
+
+    // Remote Control Server section
+    QLabel *remoteLabel = new QLabel("<b>Remote Control Server</b>");
+    connectionMainLayout->addWidget(remoteLabel);
+
+    QWidget *remoteWidget = new QWidget();
+    QFormLayout *remoteLayout = new QFormLayout(remoteWidget);
+    remoteLayout->setContentsMargins(20, 0, 0, 0);
+
+    m_remoteControlPortSpin = new QSpinBox();
+    m_remoteControlPortSpin->setRange(1, 65535);
+    remoteLayout->addRow("Port:", m_remoteControlPortSpin);
+
+    connectionMainLayout->addWidget(remoteWidget);
+    connectionMainLayout->addStretch();
 
     m_tabWidget->addTab(connectionTab, "Connection");
 
@@ -197,6 +223,7 @@ void SettingsDialog::loadSettings()
     m_hostEdit->setText(settings.host());
     m_portSpin->setValue(settings.port());
     m_clientIdSpin->setValue(settings.clientId());
+    m_remoteControlPortSpin->setValue(settings.remoteControlPort());
 }
 
 void SettingsDialog::saveSettings()
@@ -213,6 +240,7 @@ void SettingsDialog::saveSettings()
     settings.setHost(m_hostEdit->text());
     settings.setPort(m_portSpin->value());
     settings.setClientId(m_clientIdSpin->value());
+    settings.setRemoteControlPort(m_remoteControlPortSpin->value());
     settings.save();
 }
 

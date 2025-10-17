@@ -148,6 +148,9 @@ set(SOURCES
     src/utils/logger.h
     src/utils/globalhotkeymanager.cpp
     src/utils/globalhotkeymanager.h
+    # Server
+    src/server/remotecontrolserver.cpp
+    src/server/remotecontrolserver.h
 )
 
 # Platform-specific sources

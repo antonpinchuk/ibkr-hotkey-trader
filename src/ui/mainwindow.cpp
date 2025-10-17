@@ -14,6 +14,7 @@
 #include "utils/logger.h"
 #include "utils/globalhotkeymanager.h"
 #include "utils/systemtraymanager.h"
+#include "server/remotecontrolserver.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QMenuBar>
@@ -55,6 +56,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_symbolSearch = new SymbolSearchDialog(m_ibkrClient, this);
     m_globalHotkeyManager = new GlobalHotkeyManager(this);
     m_systemTrayManager = new SystemTrayManager(this);
+    m_remoteControlServer = nullptr; // Will be initialized after UI setup
 
     setupUI();
     setupConnections();
@@ -69,12 +71,32 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Try to connect to TWS on startup
     m_ibkrClient->connect(settings.host(), settings.port(), settings.clientId());
+
+    // Initialize and start Remote Control Server
+    m_remoteControlServer = new RemoteControlServer(m_ibkrClient, m_tickerDataManager, m_tickerList, this);
+    connect(m_remoteControlServer, &RemoteControlServer::tickerAddRequested, this, &MainWindow::onSymbolSelected);
+    connect(m_remoteControlServer, &RemoteControlServer::tickerSelectRequested, this, [this](const QString& symbol) {
+        QString exchange = m_tickerDataManager->getExchange(symbol);
+        onSymbolSelected(symbol, exchange);
+    });
+    connect(m_remoteControlServer, &RemoteControlServer::tickerDeleteRequested, this, &MainWindow::onSymbolDelete);
+
+    if (m_remoteControlServer->start(settings.remoteControlPort())) {
+        LOG_INFO(QString("Remote Control Server started on port %1").arg(settings.remoteControlPort()));
+    } else {
+        LOG_ERROR("Failed to start Remote Control Server");
+    }
 }
 
 MainWindow::~MainWindow()
 {
     // Unregister global hotkeys
     m_globalHotkeyManager->unregisterHotkeys();
+
+    // Stop Remote Control Server
+    if (m_remoteControlServer) {
+        m_remoteControlServer->stop();
+    }
 }
 
 void MainWindow::setupUI()

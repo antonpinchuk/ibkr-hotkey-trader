@@ -396,6 +396,5 @@ void IBKRWrapper::symbolSamples(int reqId, const std::vector<ContractDescription
         results.append(qMakePair(symbol, qMakePair(companyName, exchange)));
     }
 
-    qDebug() << "Symbol samples received for reqId:" << reqId << "count:" << results.size();
     emit symbolSamplesReceived(reqId, results);
 }

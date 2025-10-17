@@ -90,7 +90,7 @@ void IBKRClient::setupSignals()
             QString newAccount = accountList.first().trimmed();
             if (!newAccount.isEmpty()) {
                 m_activeAccount = newAccount;
-                LOG_INFO(QString("Active account set to: %1").arg(m_activeAccount));
+                LOG_DEBUG(QString("Active account set to: %1").arg(m_activeAccount));
                 emit activeAccountChanged(m_activeAccount);
                 // Request account updates (balance + positions)
                 LOG_DEBUG(QString("Subscribing to account updates for: %1").arg(m_activeAccount));

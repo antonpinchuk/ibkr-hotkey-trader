@@ -282,6 +282,9 @@ ibkr-hotkey-trader/
 │   │   ├── uistate.h/cpp                 # UI state persistence (window geometry, splitters, chart zoom)
 │   │   └── tickerdatamanager.h/cpp       # Ticker data manager (candle caching, real-time bars, aggregation)
 │   │
+│   ├── server/                           # Servers
+│   │   └── remotecontrolserver.h/cpp     # Remoto control of our app via REAT API
+│   │
 │   ├── utils/                            # Utilities
 │   │   ├── logger.h/cpp                  # Logging system (file logging with log levels)
 │   │   ├── globalhotkeymanager.h/cpp     # Global hotkeys (macOS Carbon API, system-wide shortcuts)
@@ -341,6 +344,59 @@ ibkr-hotkey-trader/
 
 #### Utils Layer (`src/utils/`)
 - **logger**: File-based logging with DEBUG/INFO/WARNING/ERROR levels
+
+### Testing Remote Control API
+
+The Remote Control Server provides REST JSON endpoints for managing tickers remotely. This is useful for TradingView browser plugin integration.
+
+**Configuration:** Settings → Connection tab
+
+**API Endpoints:**
+
+1. Add Ticker - POST /ticker
+2. Select Ticker - PUT /ticker
+3. Delete Ticker - DELETE /ticker
+
+Response codes:
+- `200 OK` - Ticker selected
+- `201 Created` - Ticker added and activated
+- `204 No Content` - Ticker deleted
+- `404 Not Found` - Ticker not found (in TWS or in ticker table)
+- `409 Conflict` - Ticker already in the list
+- `400 Bad Request` - Invalid JSON or missing fields
+- `502 Bad Gateway` - No connection with TWS
+
+**Error Response:**
+```json
+{
+  "error": "Error message here"
+}
+```
+
+**Testing Examples:**
+
+```bash
+# Add multiple tickers
+curl -X POST http://127.0.0.1:8496/ticker \
+  -H "Content-Type: application/json" \
+  -d '{"symbol": "TSLA", "exchange": "NASDAQ"}'
+
+curl -X POST http://127.0.0.1:8496/ticker \
+  -H "Content-Type: application/json" \
+  -d '{"symbol": "MSFT", "exchange": "NASDAQ"}'
+
+# Switch between tickers
+curl -X PUT http://127.0.0.1:8496/ticker \
+  -H "Content-Type: application/json" \
+  -d '{"symbol": "TSLA", "exchange": "NASDAQ"}'
+
+# Delete a ticker
+curl -X DELETE http://127.0.0.1:8496/ticker \
+  -H "Content-Type: application/json" \
+  -d '{"symbol": "MSFT", "exchange": "NASDAQ"}'
+```
+
+**Note:** The server listens on all network interfaces (0.0.0.0), so it can be accessed from other devices on the same network. Use your computer's IP address instead of 127.0.0.1 when accessing from another device.
 
 ### IDE Setup
 

@@ -18,13 +18,13 @@ SystemTrayManager::SystemTrayManager(QObject *parent)
     m_blinkTimer->setInterval(500);
     connect(m_blinkTimer, &QTimer::timeout, this, &SystemTrayManager::onBlinkTimer);
 
-    LOG_INFO("SystemTrayManager initialized");
+    LOG_DEBUG("SystemTrayManager initialized");
 }
 
 SystemTrayManager::~SystemTrayManager()
 {
     destroyStatusItem();
-    LOG_INFO("SystemTrayManager destroyed");
+    LOG_DEBUG("SystemTrayManager destroyed");
 }
 
 void SystemTrayManager::createStatusItem()
@@ -75,7 +75,7 @@ void SystemTrayManager::createStatusItem()
                 }
             }
 
-            LOG_INFO("Status bar item created");
+            LOG_DEBUG("Status bar item created");
         } else {
             LOG_ERROR("Failed to create status bar item");
         }
@@ -90,7 +90,7 @@ void SystemTrayManager::destroyStatusItem()
             [statusBar removeStatusItem:m_statusItem];
             [m_statusItem release];
             m_statusItem = nullptr;
-            LOG_INFO("Status bar item removed");
+            LOG_DEBUG("Status bar item removed");
         }
     }
 }

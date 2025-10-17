@@ -40,9 +40,22 @@ void Logger::log(LogLevel level, const QString& message, const QString& source) 
     entry.source = source;
     entry.repeatCount = 0;
 
-    // Keep only last MAX_ENTRIES to prevent memory overflow
+    // Smart cleanup: when buffer full, remove old DEBUG entries but keep INFO/WARNING/ERROR
     if (m_entries.size() >= MAX_ENTRIES) {
-        m_entries.removeFirst();
+        // Find and remove oldest DEBUG entry
+        bool foundDebug = false;
+        for (int i = 0; i < m_entries.size(); ++i) {
+            if (m_entries[i].level == LogLevel::Debug) {
+                m_entries.removeAt(i);
+                foundDebug = true;
+                break;
+            }
+        }
+
+        // If no DEBUG entries found, remove oldest entry (shouldn't happen in practice)
+        if (!foundDebug) {
+            m_entries.removeFirst();
+        }
     }
 
     m_entries.append(entry);

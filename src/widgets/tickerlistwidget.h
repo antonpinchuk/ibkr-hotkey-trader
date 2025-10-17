@@ -20,6 +20,7 @@ public:
     void updateTickerPrice(const QString& symbol, double price, double changePercent);
     void clear();
     QString getTopSymbol() const;
+    QStringList getAllSymbols() const;
 
 signals:
     void symbolSelected(const QString& symbol);

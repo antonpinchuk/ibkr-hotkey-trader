@@ -35,6 +35,10 @@ public:
     int clientId() const { return m_clientId; }
     void setClientId(int id);
 
+    // Remote Control settings
+    int remoteControlPort() const { return m_remoteControlPort; }
+    void setRemoteControlPort(int port);
+
     // View settings
     bool showCancelledOrders() const { return m_showCancelledOrders; }
     void setShowCancelledOrders(bool show);
@@ -57,6 +61,7 @@ private:
     QString m_host;
     int m_port;
     int m_clientId;
+    int m_remoteControlPort;
     bool m_showCancelledOrders;
 
     void initDatabase();

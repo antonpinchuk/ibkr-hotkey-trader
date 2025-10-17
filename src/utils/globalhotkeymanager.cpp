@@ -17,7 +17,7 @@ GlobalHotkeyManager::~GlobalHotkeyManager()
 
 bool GlobalHotkeyManager::registerHotkeys()
 {
-    LOG_INFO("Registering global hotkeys");
+    LOG_DEBUG("Registering global hotkeys");
 
     // Install event handler
     EventTypeSpec eventType;
@@ -74,13 +74,13 @@ bool GlobalHotkeyManager::registerHotkeys()
     // Control+Option+Q (Cancel Orders)
     registerHotkey(controlKey | optionKey, 12, CancelOrders); // Q = 12
 
-    LOG_INFO(QString("Registered %1 global hotkeys").arg(m_hotkeys.size()));
+    LOG_DEBUG(QString("Registered %1 global hotkeys").arg(m_hotkeys.size()));
     return true;
 }
 
 void GlobalHotkeyManager::unregisterHotkeys()
 {
-    LOG_INFO("Unregistering global hotkeys");
+    LOG_DEBUG("Unregistering global hotkeys");
 
     // Unregister all hotkeys
     for (auto it = m_hotkeys.begin(); it != m_hotkeys.end(); ++it) {
@@ -94,7 +94,7 @@ void GlobalHotkeyManager::unregisterHotkeys()
         m_eventHandler = nullptr;
     }
 
-    LOG_INFO("Global hotkeys unregistered");
+    LOG_DEBUG("Global hotkeys unregistered");
 }
 
 bool GlobalHotkeyManager::registerHotkey(uint32_t modifiers, uint32_t keyCode, HotkeyAction action)

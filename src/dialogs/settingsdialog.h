@@ -52,6 +52,9 @@ private:
     QLineEdit *m_hostEdit;
     QSpinBox *m_portSpin;
     QSpinBox *m_clientIdSpin;
+
+    // Remote Control tab
+    QSpinBox *m_remoteControlPortSpin;
 };
 
 #endif // SETTINGSDIALOG_H

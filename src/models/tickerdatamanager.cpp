@@ -489,7 +489,7 @@ void TickerDataManager::requestMissingBars(const QString& symbol, qint64 fromTim
 
 void TickerDataManager::onReconnected()
 {
-    LOG_INFO("Reconnected. Re-subscribing to data.");
+    LOG_DEBUG("Reconnected. Re-subscribing to data.");
     // Clear all logging trackers on reconnect
     m_realTimeBarsLogged.clear();
     subscribeToCurrentTicker();

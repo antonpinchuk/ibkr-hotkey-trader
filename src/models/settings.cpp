@@ -90,6 +90,7 @@ void Settings::initDefaults()
     m_host = "127.0.0.1";
     m_port = 7496;
     m_clientId = 0;  // Client ID 0 is required for binding manual orders
+    m_remoteControlPort = 8496;
     m_showCancelledOrders = false;  // Hidden by default
 }
 
@@ -131,6 +132,11 @@ void Settings::setPort(int port)
 void Settings::setClientId(int id)
 {
     m_clientId = id;
+}
+
+void Settings::setRemoteControlPort(int port)
+{
+    m_remoteControlPort = port;
 }
 
 void Settings::setShowCancelledOrders(bool show)
@@ -178,6 +184,7 @@ void Settings::load()
     m_host = getValue("host", "127.0.0.1");
     m_port = getValue("port", "7496").toInt();
     m_clientId = getValue("client_id", "0").toInt();  // Default to 0 for manual order binding
+    m_remoteControlPort = getValue("remote_control_port", "8496").toInt();
     m_showCancelledOrders = getValue("show_cancelled_orders", "0").toInt() == 1;
 }
 
@@ -196,5 +203,6 @@ void Settings::save()
     setValue("host", m_host);
     setValue("port", QString::number(m_port));
     setValue("client_id", QString::number(m_clientId));
+    setValue("remote_control_port", QString::number(m_remoteControlPort));
     setValue("show_cancelled_orders", m_showCancelledOrders ? "1" : "0");
 }

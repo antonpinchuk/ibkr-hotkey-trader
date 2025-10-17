@@ -21,6 +21,7 @@ class DebugLogDialog;
 class TickerDataManager;
 class GlobalHotkeyManager;
 class SystemTrayManager;
+class RemoteControlServer;
 
 class MainWindow : public QMainWindow
 {
@@ -151,6 +152,7 @@ private:
     TickerDataManager *m_tickerDataManager;
     GlobalHotkeyManager *m_globalHotkeyManager;
     SystemTrayManager *m_systemTrayManager;
+    RemoteControlServer *m_remoteControlServer;
 
     QString m_currentSymbol;
     QMap<QString, QString> m_symbolToExchange;   // symbol -> primaryExchange

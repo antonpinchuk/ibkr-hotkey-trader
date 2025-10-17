@@ -49,7 +49,7 @@ private:
 
     QVector<LogEntry> m_entries;
     mutable QMutex m_mutex;
-    static constexpr int MAX_ENTRIES = 10000; // Limit memory usage
+    static constexpr int MAX_ENTRIES = 50000; // Large buffer for day trading (tick-by-tick updates)
     static constexpr int DUPLICATE_WINDOW_MS = 2000; // Check duplicates within 2 seconds
 };
 

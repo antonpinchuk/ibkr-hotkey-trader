@@ -155,6 +155,16 @@ QString TickerListWidget::getTopSymbol() const
     return QString();
 }
 
+QStringList TickerListWidget::getAllSymbols() const
+{
+    QStringList symbols;
+    for (int i = 0; i < m_listWidget->count(); ++i) {
+        QListWidgetItem *item = m_listWidget->item(i);
+        symbols.append(item->data(TickerItemDelegate::SymbolRole).toString());
+    }
+    return symbols;
+}
+
 bool TickerListWidget::eventFilter(QObject *obj, QEvent *event)
 {
     if (obj == m_tickerLabel && event->type() == QEvent::MouseButtonPress) {
