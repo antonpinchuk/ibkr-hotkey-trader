@@ -11,7 +11,7 @@ A reactive hotkey trading application for **Interactive Brokers**, enabling rapi
 - **Multiple Tickers**: Switch between symbols; add/remove/reorder
 - **Portfolio/Orders**: Track open positions and today's orders in real-time
 - **Session Statistics**: Track daily P&L, win rate, and trade history
-- **Real-time Charts**: Candlestick chart (5s to 1Y) with live price updates, auto-scaling, and horizontal zoom
+- **Real-time Charts**: Candlestick chart (5s to 1H) with live price updates, auto-scaling, and horizontal zoom
 - **System Tray**: Current ticker (for visibility when app is not in focus), blinks on price feed loss
 - **Remote Control**: Add/remove/select tickers for TradingView browser plugin integration 
 
@@ -214,7 +214,7 @@ To start over use `File → Reset Session` or restart the app.
   - Live price updates with color-coded % change indicators
   - Right-click for context menu (Move to Top, Delete)
 - **Center Panel**: Multi-timeframe candlestick chart
-  - Timeframes: 5s, 10s, 30s, 1m, 5m, 15m, 30m, 1h, 1d, 1w, 1m
+  - Timeframes: 5s, 10s, 30s, 1m, 5m, 15m, 30m, 1H
   - Auto-scale checkbox (vertical auto-scaling to visible candles)
   - Horizontal zoom/scroll (mousewheel/drag) with state persistence per timeframe
   - Real-time price lines (bid/ask/mid) updated from tick data

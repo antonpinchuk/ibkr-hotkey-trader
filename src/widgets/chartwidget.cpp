@@ -167,9 +167,6 @@ void ChartWidget::setupControls()
     m_candleSizeCombo->addItem("15m", QVariant::fromValue(Timeframe::MIN_15));
     m_candleSizeCombo->addItem("30m", QVariant::fromValue(Timeframe::MIN_30));
     m_candleSizeCombo->addItem("1H", QVariant::fromValue(Timeframe::HOUR_1));
-    m_candleSizeCombo->addItem("1D", QVariant::fromValue(Timeframe::DAY_1));
-    m_candleSizeCombo->addItem("1W", QVariant::fromValue(Timeframe::WEEK_1));
-    m_candleSizeCombo->addItem("1M", QVariant::fromValue(Timeframe::MONTH_1));
 
     m_candleSizeCombo->setCurrentIndex(1);
 

@@ -15,9 +15,6 @@ QString timeframeToString(Timeframe tf) {
         case Timeframe::MIN_15:  return "15m";
         case Timeframe::MIN_30:  return "30m";
         case Timeframe::HOUR_1:  return "1H";
-        case Timeframe::DAY_1:   return "1D";
-        case Timeframe::WEEK_1:  return "1W";
-        case Timeframe::MONTH_1: return "1M";
         default: return "Unknown";
     }
 }
@@ -32,9 +29,6 @@ QString timeframeToBarSize(Timeframe tf) {
         case Timeframe::MIN_15:  return "15 mins";
         case Timeframe::MIN_30:  return "30 mins";
         case Timeframe::HOUR_1:  return "1 hour";
-        case Timeframe::DAY_1:   return "1 day";
-        case Timeframe::WEEK_1:  return "1 week";
-        case Timeframe::MONTH_1: return "1 month";
         default: return "1 min";
     }
 }
@@ -49,9 +43,6 @@ int timeframeToSeconds(Timeframe tf) {
         case Timeframe::MIN_15:  return 900;
         case Timeframe::MIN_30:  return 1800;
         case Timeframe::HOUR_1:  return 3600;
-        case Timeframe::DAY_1:   return 86400;
-        case Timeframe::WEEK_1:  return 604800;
-        case Timeframe::MONTH_1: return 2592000;
         default: return 60;
     }
 }
@@ -465,6 +456,10 @@ void TickerDataManager::requestHistoricalBars(const QString& symbol, int reqId, 
 {
     int barSeconds = timeframeToSeconds(timeframe);
     int durationSeconds = barSeconds * 500; // Request 500 bars
+
+    // TWS does not allow historical data requests for more than 86400 seconds (24 hours)
+    durationSeconds = qMin(durationSeconds, 86400);
+
     if (timeframe == Timeframe::SEC_10 && durationSeconds > 7200) {
         durationSeconds = 7200;
     }
@@ -481,6 +476,10 @@ void TickerDataManager::requestMissingBars(const QString& symbol, qint64 fromTim
     m_reqIdToSymbol[reqId] = symbol;
     m_reqIdToTimeframe[reqId] = m_currentTimeframe;
     qint64 durationSeconds = toTime - fromTime;
+
+    // TWS does not allow historical data requests for more than 86400 seconds (24 hours)
+    durationSeconds = qMin(durationSeconds, 86400);
+
     QString duration = QString("%1 S").arg(durationSeconds);
     QString endTimeStr = QDateTime::fromSecsSinceEpoch(toTime, QTimeZone("UTC")).toString("yyyyMMdd-HH:mm:ss");
     QString barSize = timeframeToBarSize(m_currentTimeframe);

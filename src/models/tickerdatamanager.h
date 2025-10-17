@@ -18,10 +18,7 @@ enum class Timeframe {
     MIN_5,    // 5 minutes
     MIN_15,   // 15 minutes
     MIN_30,   // 30 minutes
-    HOUR_1,   // 1 hour
-    DAY_1,    // 1 day
-    WEEK_1,   // 1 week
-    MONTH_1,  // 1 month
+    HOUR_1,   // 1 hour (maximum due to TWS 86400s historical data limit)
 };
 
 Q_DECLARE_METATYPE(Timeframe)
