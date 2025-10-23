@@ -7,6 +7,10 @@ let settings = {
   coloredWishlists: []
 };
 
+// Connection state tracking
+let isConnected = true;
+let lastConnectionError = null;
+
 // Load settings on startup
 chrome.runtime.onStartup.addListener(loadSettings);
 chrome.runtime.onInstalled.addListener(loadSettings);
@@ -43,7 +47,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleTickerChange(message.data).then(() => {
       sendResponse({ success: true });
     }).catch(error => {
-      console.error('[IBKR Extension] Ticker change error:', error);
+      console.log('[IBKR Extension] Ticker change error:', error);
       sendResponse({ success: false, error: error.message });
     });
     return true; // Keep channel open for async response
@@ -51,7 +55,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleWishlistSync(message.data).then(() => {
       sendResponse({ success: true });
     }).catch(error => {
-      console.error('[IBKR Extension] Wishlist sync error:', error);
+      console.log('[IBKR Extension] Wishlist sync error:', error);
       sendResponse({ success: false, error: error.message });
     });
     return true; // Keep channel open for async response
@@ -59,12 +63,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleBulkRemove(message.data).then(() => {
       sendResponse({ success: true });
     }).catch(error => {
-      console.error('[IBKR Extension] Bulk remove error:', error);
+      console.log('[IBKR Extension] Bulk remove error:', error);
       sendResponse({ success: false, error: error.message });
     });
     return true; // Keep channel open for async response
   }
 });
+
+// Helper to handle fetch with connection state tracking
+async function fetchWithConnectionTracking(url, options) {
+  try {
+    const response = await fetch(url, options);
+
+    // Any response (2xx-5xx) means connection is OK
+    if (!isConnected) {
+      console.log('[IBKR Extension] Connection restored');
+      isConnected = true;
+      lastConnectionError = null;
+    }
+
+    return response;
+  } catch (error) {
+    // Connection error (app not running, network error, etc.)
+    if (isConnected) {
+      // First error - log it
+      console.log('[IBKR Extension] Connection error:', error.message);
+      isConnected = false;
+      lastConnectionError = Date.now();
+    }
+    // Subsequent errors - suppress (don't log)
+    throw error;
+  }
+}
 
 // Handle ticker change from content script
 async function handleTickerChange(tickerData) {
@@ -73,7 +103,7 @@ async function handleTickerChange(tickerData) {
   // Always add/select ticker regardless of criteria
   // Criteria are only used for removal during wishlist sync
   try {
-    const putResponse = await fetch(`${settings.webhookUrl}/ticker`, {
+    const putResponse = await fetchWithConnectionTracking(`${settings.webhookUrl}/ticker`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol, exchange })
@@ -81,7 +111,7 @@ async function handleTickerChange(tickerData) {
 
     if (putResponse.status === 404) {
       // Ticker not found, add it (POST)
-      const postResponse = await fetch(`${settings.webhookUrl}/ticker`, {
+      const postResponse = await fetchWithConnectionTracking(`${settings.webhookUrl}/ticker`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbol, exchange })
@@ -94,7 +124,7 @@ async function handleTickerChange(tickerData) {
           lastSync: Date.now()
         });
       } else {
-        console.error('[IBKR Extension] Failed to add:', postResponse.status);
+        console.log(`[IBKR Extension] Failed to add ${exchange}:${symbol}:`, postResponse.status);
       }
     } else if (putResponse.ok) {
       console.log(`[IBKR Extension] Selected ${exchange}:${symbol}`);
@@ -103,10 +133,10 @@ async function handleTickerChange(tickerData) {
         lastSync: Date.now()
       });
     } else {
-      console.error('[IBKR Extension] Failed to select:', putResponse.status);
+      console.log(`[IBKR Extension] Failed to select ${exchange}:${symbol}:`, putResponse.status);
     }
   } catch (error) {
-    console.error('[IBKR Extension] API error:', error);
+    // Connection error already logged by fetchWithConnectionTracking
   }
 }
 
@@ -148,7 +178,7 @@ async function handleWishlistSync(data) {
 
   // Get current tickers from app
   try {
-    const response = await fetch(`${settings.webhookUrl}/ticker`);
+    const response = await fetchWithConnectionTracking(`${settings.webhookUrl}/ticker`);
     if (!response.ok) return;
 
     const appTickers = await response.json();
@@ -163,12 +193,21 @@ async function handleWishlistSync(data) {
 
       // Remove if not in filtered wishlists
       if (!tvTickerSet.has(tickerKey)) {
-        await fetch(`${settings.webhookUrl}/ticker`, {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbol: appTicker.symbol, exchange: appTicker.exchange })
-        });
-        removed.push(tickerKey);
+        try {
+          const deleteResponse = await fetchWithConnectionTracking(`${settings.webhookUrl}/ticker`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ symbol: appTicker.symbol, exchange: appTicker.exchange })
+          });
+
+          if (deleteResponse.status === 204) {
+            removed.push(tickerKey);
+          } else {
+            console.log(`[IBKR Extension] Failed to remove ${tickerKey}:`, deleteResponse.status);
+          }
+        } catch (error) {
+          // Connection error already logged by fetchWithConnectionTracking
+        }
       }
     }
 
@@ -176,7 +215,7 @@ async function handleWishlistSync(data) {
       console.log('[IBKR Extension] Removed:', removed.join(', '));
     }
   } catch (error) {
-    console.error('[IBKR Extension] Wishlist sync error:', error);
+    // Connection error already logged by fetchWithConnectionTracking
   }
 }
 
@@ -197,14 +236,19 @@ async function handleBulkRemove(data) {
     if (tickerKey === activeTicker) continue;
 
     try {
-      await fetch(`${settings.webhookUrl}/ticker`, {
+      const deleteResponse = await fetchWithConnectionTracking(`${settings.webhookUrl}/ticker`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbol, exchange })
       });
-      removed.push(tickerKey);
+
+      if (deleteResponse.status === 204) {
+        removed.push(tickerKey);
+      } else {
+        console.log(`[IBKR Extension] Failed to remove ${tickerKey}:`, deleteResponse.status);
+      }
     } catch (error) {
-      console.error(`[IBKR Extension] Failed to remove ${tickerKey}:`, error);
+      // Connection error already logged by fetchWithConnectionTracking
     }
   }
 

@@ -118,11 +118,7 @@ async function extractTickerInfo() {
   try {
     const tickerData = {
       symbol: null,
-      exchange: null,
-      inColoredWishlist: false,
-      coloredWishlistColor: null,
-      inCustomWishlist: false,
-      customWishlistName: null
+      exchange: null
     };
 
     // Extract symbol (ticker name)
@@ -137,24 +133,6 @@ async function extractTickerInfo() {
       tickerData.exchange = exchangeDiv.textContent.trim();
     }
 
-    // Extract colored wishlist flag
-    const flagButton = document.querySelector('[class*="flag-"][class*="button-"] > div > div > div');
-    if (flagButton) {
-      const flagClasses = flagButton.className;
-      const colorMatch = flagClasses.match(/(red|blue|green|orange|purple)-/);
-      if (colorMatch) {
-        tickerData.inColoredWishlist = true;
-        tickerData.coloredWishlistColor = colorMatch[1];
-      }
-    }
-
-    // Extract custom wishlist info (if watchlist panel is visible)
-    const customWishlist = extractCustomWishlistInfo(tickerData.symbol);
-    if (customWishlist) {
-      tickerData.inCustomWishlist = customWishlist.inWishlist;
-      tickerData.customWishlistName = customWishlist.wishlistName;
-    }
-
     // Send to background script
     if (tickerData.symbol && tickerData.exchange) {
       chrome.runtime.sendMessage({
@@ -164,46 +142,6 @@ async function extractTickerInfo() {
     }
   } catch (error) {
     console.error('[IBKR Extension] Error extracting ticker info:', error);
-  }
-}
-
-// Extract custom wishlist info from watchlist panel
-function extractCustomWishlistInfo(symbol) {
-  try {
-    // Find wishlist name
-    const wishlistNameEl = document.querySelector('[class*="titleRow-"]');
-    if (!wishlistNameEl) return null;
-
-    const wishlistName = wishlistNameEl.textContent.trim();
-
-    // Find watchlist items container
-    const watchlistContainer = document.querySelector('[class*="widgetbar-widget-watchlist"] [class*="listContainer-"]');
-    if (!watchlistContainer) return null;
-
-    // Search for symbol in the list
-    const items = watchlistContainer.querySelectorAll('[class*="row-"]');
-
-    for (const item of items) {
-      const symbolEl = item.querySelector('[class*="symbolCell-"] span');
-      if (symbolEl && symbolEl.textContent.trim() === symbol) {
-        // Check if item has "active" class
-        const parentDiv = item.closest('[class*="row-"]');
-        if (parentDiv && parentDiv.className.includes('active-')) {
-          return {
-            inWishlist: true,
-            wishlistName: wishlistName
-          };
-        }
-      }
-    }
-
-    return {
-      inWishlist: false,
-      wishlistName: null
-    };
-  } catch (error) {
-    console.error('[IBKR Extension] Error extracting custom wishlist:', error);
-    return null;
   }
 }
 
