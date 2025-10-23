@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>TradingView IBKR Hotkey Trader</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h1>TradingView → IBKR Hotkey Trader</h1>
+
+    <div class="status" id="status">
+      <span class="status-indicator" id="statusIndicator"></span>
+      <span id="statusText">Не підключено</span>
+    </div>
+
+    <div class="section">
+      <h2>Webhook Settings</h2>
+
+      <label for="webhookUrl">Base URL:</label>
+      <input type="text" id="webhookUrl" placeholder="http://127.0.0.1:8496" />
+    </div>
+
+    <div class="section">
+      <h2>Ticker Criteria</h2>
+
+      <label for="exchanges">Stock Exchanges:</label>
+      <input type="text" id="exchanges" placeholder="NASDAQ, NYSE (empty = all)" />
+      <small>Comma separated, empty = all exchanges</small>
+
+      <label for="customWishlists">Custom Wishlist Names:</label>
+      <input type="text" id="customWishlists" placeholder="My Stocks, Day Trading" />
+      <small>Comma separated wishlist names</small>
+
+      <label for="coloredWishlists">Wishlist Colors:</label>
+      <div class="checkbox-group">
+        <label><input type="checkbox" id="color-red" value="red"> <span class="color-badge red">Red</span></label>
+        <label><input type="checkbox" id="color-blue" value="blue"> <span class="color-badge blue">Blue</span></label>
+        <label><input type="checkbox" id="color-green" value="green"> <span class="color-badge green">Green</span></label>
+        <label><input type="checkbox" id="color-orange" value="orange"> <span class="color-badge orange">Orange</span></label>
+        <label><input type="checkbox" id="color-purple" value="purple"> <span class="color-badge purple">Purple</span></label>
+      </div>
+    </div>
+
+    <div class="section">
+      <button id="saveBtn" class="btn-primary">Save Settings</button>
+      <button id="testBtn" class="btn-secondary">Test Connection</button>
+    </div>
+
+    <div id="message" class="message"></div>
+
+    <div class="section">
+      <h3>Debug Info</h3>
+      <div id="debugInfo" class="debug-info">
+        <div>Active ticker: <strong id="activeTicker">-</strong></div>
+        <div>Last sync: <strong id="lastSync">-</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

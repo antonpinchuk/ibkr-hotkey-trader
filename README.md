@@ -199,6 +199,8 @@ To start over use `File → Reset Session` or restart the app.
 3. Current ticker is always visible in MacOS menu bar (mind blinking)
 4. Use hotkeys to trade
 
+(see [chrome-extension/README.md](chrome-extension/README.md))
+
 ### Safety Features
 - Cannot exceed 100% of budget (warning toast)
 - Budget validation against account balance

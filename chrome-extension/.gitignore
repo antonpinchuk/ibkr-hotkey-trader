@@ -1,0 +1,10 @@
+# Chrome Extension artifacts
+*.pem
+*.crx
+*.zip
+
+# macOS
+.DS_Store
+
+# Logs
+*.log

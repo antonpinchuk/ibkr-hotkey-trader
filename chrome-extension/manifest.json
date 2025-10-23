@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "TradingView IBKR Hotkey Trader Integration",
+  "version": "1.1.1",
+  "description": "Automatically sync active symbols from TradingView to IBKR Hotkey Trader",
+  "permissions": [
+    "storage",
+    "webRequest",
+    "activeTab",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://www.tradingview.com/*",
+    "http://127.0.0.1:8496/*",
+    "http://localhost:8496/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.tradingview.com/chart/*"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "64": "icons/icon64.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "64": "icons/icon64.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js"],
+      "matches": ["https://www.tradingview.com/*"]
+    }
+  ]
+}
