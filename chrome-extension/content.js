@@ -66,42 +66,75 @@ window.addEventListener('IBKR_WISHLIST_DATA', function(event) {
   const { url, data } = event.detail;
 
   try {
-    // Case 2.1: All wishlists
-    if (url.includes('/api/v1/symbols_list/all/')) {
+    // 2.1.1, 2.1.2: Custom wishlist append/remove - POST /api/v1/symbols_list/custom/{id}/append|remove/
+    const customUpdateMatch = url.match(/\/api\/v1\/symbols_list\/custom\/(\d+)\/(append|remove)\//);
+    if (customUpdateMatch) {
+      const wishlistId = parseInt(customUpdateMatch[1]);
       chrome.runtime.sendMessage({
-        type: 'SYNC_WISHLISTS',
-        data: { wishlists: data, type: 'all' }
-      }, handleMessageError('All wishlists sync'));
+        type: 'CUSTOM_WISHLIST_UPDATE',
+        wishlistId: wishlistId,
+        symbols: data
+      }, handleMessageError('Custom wishlist update'));
     }
 
-    // Case 2.2.1: Colored wishlist active
+    // 2.1: Custom wishlists - GET /api/v1/symbols_list/custom/
+    else if (url.includes('/api/v1/symbols_list/custom/')) {
+      // Response can be array of wishlists or single wishlist object
+      const wishlists = Array.isArray(data) ? data : [data];
+      chrome.runtime.sendMessage({
+        type: 'CUSTOM_WISHLISTS',
+        data: wishlists
+      }, handleMessageError('Custom wishlists'));
+    }
+
+    // 2.2: Colored wishlist GET - GET /api/v1/symbols_list/colored/[color]
+    else if (url.match(/\/api\/v1\/symbols_list\/colored\/(red|blue|green|orange|purple)$/)) {
+      const color = url.match(/\/(red|blue|green|orange|purple)$/)[1];
+      chrome.runtime.sendMessage({
+        type: 'COLORED_WISHLIST',
+        color: color,
+        symbols: data.symbols || []
+      }, handleMessageError('Colored wishlist GET'));
+    }
+
+    // 2.2: Colored wishlist POST - POST /api/v1/symbols_list/active/[color]/
     else if (url.match(/\/api\/v1\/symbols_list\/active\/(red|blue|green|orange|purple)\//)) {
       const color = url.match(/\/(red|blue|green|orange|purple)\//)[1];
       chrome.runtime.sendMessage({
-        type: 'SYNC_WISHLISTS',
-        data: { wishlists: data, type: 'colored', color }
-      }, handleMessageError('Colored wishlist sync'));
+        type: 'COLORED_WISHLIST',
+        color: color,
+        symbols: data.symbols || []
+      }, handleMessageError('Colored wishlist POST active'));
     }
 
-    // Case 2.2.2: Colored wishlist append
+    // 2.3: Colored wishlist append - POST /api/v1/symbols_list/colored/[color]/append/
     else if (url.match(/\/api\/v1\/symbols_list\/colored\/(red|blue|green|orange|purple)\/append\//)) {
       const color = url.match(/\/(red|blue|green|orange|purple)\//)[1];
+      // Response is array of symbols in this wishlist
       chrome.runtime.sendMessage({
-        type: 'SYNC_WISHLISTS',
-        data: {
-          wishlists: { symbols: data },
-          type: 'colored',
-          color
-        }
-      }, handleMessageError('Append sync'));
+        type: 'COLORED_WISHLIST',
+        color: color,
+        symbols: data
+      }, handleMessageError('Colored wishlist append'));
     }
 
-    // Case 2.3: Bulk remove (data is request body - array of symbols)
+    // 2.4: All wishlists - GET /api/v1/symbols_list/all/
+    else if (url.includes('/api/v1/symbols_list/all/')) {
+      // Response should be array of wishlists
+      const wishlists = Array.isArray(data) ? data : [data];
+      chrome.runtime.sendMessage({
+        type: 'ALL_WISHLISTS',
+        data: wishlists
+      }, handleMessageError('All wishlists'));
+    }
+
+    // 2.5: Bulk remove - POST /api/v1/symbols_list/colored/bulk_remove/
+    // data = request body (symbols to remove), response is just {status: "ok"}
     else if (url.includes('/api/v1/symbols_list/colored/bulk_remove/')) {
       if (Array.isArray(data) && data.length > 0) {
         chrome.runtime.sendMessage({
           type: 'BULK_REMOVE',
-          data: { symbols: data }
+          symbols: data
         }, handleMessageError('Bulk remove'));
       }
     }

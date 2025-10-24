@@ -15,7 +15,7 @@
     const url = args[0];
     const options = args[1] || {};
 
-    // Bulk remove - process REQUEST body before sending
+    // Bulk remove - process REQUEST body (response is just {status: "ok"})
     if (typeof url === 'string' && url.includes('/api/v1/symbols_list/colored/bulk_remove/')) {
       try {
         const requestBody = options.body ? JSON.parse(options.body) : null;
@@ -36,7 +36,7 @@
       window.dispatchEvent(new CustomEvent('IBKR_CHART_TOKEN'));
     }
 
-    // Process response if it's a symbols_list request (but not bulk_remove - already processed)
+    // Process response if it's a symbols_list request (except bulk_remove - already processed)
     if (typeof url === 'string' && url.includes('/api/v1/symbols_list/') && !url.includes('/bulk_remove/')) {
       const clone = response.clone();
 
@@ -76,7 +76,7 @@
       });
     }
 
-    // Bulk remove - process REQUEST body before sending
+    // Bulk remove - process REQUEST body (response is just {status: "ok"})
     if (typeof url === 'string' && url.includes('/api/v1/symbols_list/colored/bulk_remove/')) {
       try {
         const data = requestBody ? JSON.parse(requestBody) : null;
