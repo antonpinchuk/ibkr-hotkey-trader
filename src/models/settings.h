@@ -39,6 +39,11 @@ public:
     int remoteControlPort() const { return m_remoteControlPort; }
     void setRemoteControlPort(int port);
 
+    // Display Groups settings (TWS UI synchronization)
+    // groupId: 0 = disabled, 1-7 = TWS color groups
+    int displayGroupId() const { return m_displayGroupId; }
+    void setDisplayGroupId(int groupId);
+
     // View settings
     bool showCancelledOrders() const { return m_showCancelledOrders; }
     void setShowCancelledOrders(bool show);
@@ -62,6 +67,7 @@ private:
     int m_port;
     int m_clientId;
     int m_remoteControlPort;
+    int m_displayGroupId;
     bool m_showCancelledOrders;
 
     void initDatabase();

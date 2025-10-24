@@ -60,6 +60,12 @@ public:
     // Contract Search
     void searchSymbol(int reqId, const QString& pattern);
 
+    // Display Groups (TWS UI synchronization)
+    void queryDisplayGroups(int reqId);
+    void subscribeToGroupEvents(int reqId, int groupId);
+    void updateDisplayGroup(int reqId, const QString& contractInfo);
+    void unsubscribeFromGroupEvents(int reqId);
+
     EClientSocket* socket() { return m_socket.get(); }
 
 signals:
@@ -84,8 +90,12 @@ signals:
 
     void accountsReceived(const QString& accounts);
     void symbolFound(int reqId, const QString& symbol, const QString& exchange, int conId);
+    void symbolSearchFinished(int reqId); // Emitted when contract search is complete
     void symbolSearchResultsReceived(int reqId, const QList<QPair<QString, QPair<QString, QString>>>& results);
     void activeAccountChanged(const QString& account);
+
+    void displayGroupListReceived(int reqId, const QString& groups);
+    void displayGroupUpdatedReceived(int reqId, const QString& contractInfo);
 
 private slots:
     void processMessages();

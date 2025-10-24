@@ -61,6 +61,7 @@ public:
     Timeframe currentTimeframe() const { return m_currentTimeframe; }
     QString currentSymbol() const { return m_currentSymbol; }
     QString getExchange(const QString& symbol) const { return m_symbolToExchange.value(symbol, QString()); }
+    int getContractId(const QString& symbol) const { return m_symbolToContractId.value(symbol, 0); }
 
 signals:
     void tickerDataLoaded(const QString& symbol);
@@ -76,6 +77,8 @@ private slots:
     void onHistoricalDataFinished(int reqId);
     void onRealTimeBarReceived(int reqId, long time, double open, double high, double low, double close, long volume);
     void onTickByTickUpdate(int reqId, double price, double bid, double ask);
+    void onContractDetailsReceived(int reqId, const QString& symbol, const QString& exchange, int conId);
+    void onContractSearchFinished(int reqId); // Called when contract details search is complete
     void onCandleBoundaryCheck(); // Timer to detect new candle start
     void onReconnected();
 
@@ -91,9 +94,18 @@ private:
     IBKRClient* m_client;
     QMap<QString, TickerData> m_tickerData;
     QMap<QString, QString> m_symbolToExchange; // symbol -> exchange
+    QMap<QString, int> m_symbolToContractId; // symbol -> contractId (from TWS)
     QMap<int, QString> m_reqIdToSymbol;
     QMap<int, Timeframe> m_reqIdToTimeframe;
     int m_nextReqId;
+
+    // For contract search logging
+    struct ContractSearchInfo {
+        QStringList foundContracts; // List of "SYMBOL@EXCHANGE" strings
+        int totalCount = 0;
+        bool logged = false;
+    };
+    QMap<int, ContractSearchInfo> m_contractSearches; // reqId -> search info
 
     QString m_currentSymbol;
     Timeframe m_currentTimeframe;

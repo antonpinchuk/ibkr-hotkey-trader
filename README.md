@@ -13,7 +13,8 @@ A reactive hotkey trading application for **Interactive Brokers**, enabling rapi
 - **Session Statistics**: Track daily P&L, win rate, and trade history
 - **Real-time Charts**: Candlestick chart (5s to 1H) with live price updates, auto-scaling, and horizontal zoom
 - **System Tray**: Current ticker (for visibility when app is not in focus), blinks on price feed loss
-- **Remote Control**: Add/remove/select tickers for TradingView browser plugin integration 
+- **Remote Control**: Add/remove/select tickers for TradingView browser plugin integration
+- **TWS Display Groups**: Automatic synchronization with TWS windows (Market Data, Level 2, News) via hotkeys 
 
 ## Requirements
 
@@ -165,6 +166,10 @@ The application will attempt to connect to TWS automatically.
 - `Cmd+Q`: Quit application
 - `Cmd+Opt+I`: Debug log
 
+#### TWS Display Groups (UI Sync)
+- `Ctrl+Opt+F1..F7`: Select Display Group 1-7 for syncing TWS windows
+
+
 ### Trading Workflow
 1. **Start** Open TWS and log in to your account first, then launch this app
 2. **Search Symbol**: Press `Cmd+K` to search for a symbol (e.g., "AAPL", "TSLA")
@@ -200,6 +205,35 @@ To start over use `File → Reset Session` or restart the app.
 4. Use hotkeys to trade
 
 (see [chrome-extension/README.md](chrome-extension/README.md))
+
+#### TWS Display Groups (UI Synchronization)
+
+**Display Groups** allow automatic synchronization of the active ticker between TradingView -> this app -> TWS windows (Market Data, Level 2, News, Charts).
+
+**Setup:**
+
+1. **In TWS - Configure Display Groups:**
+   - Open windows you want to sync: Market Data, Level 2, News, Charts
+   - For each window:
+     - Right-click window title → **View** → **Display Groups** → Select a group (e.g., **Group 1**)
+     - OR click the link icon 🔗 in the window and select a group
+   - The link icon should become **colored** (not gray/white) when active
+   - **Important:** All windows must use the **same group number**
+
+2. **In this app - Select Display Group:**
+   - Menu: **TWS → Group 1** (or any group 1-7)
+   - OR use hotkey: **Ctrl+Alt+F1** (Group 1), **Ctrl+Alt+F2** (Group 2), etc.
+   - Check mark (✓) shows the active group
+
+3. **Usage:**
+   - When you switch tickers in this app → TWS windows automatically switch too
+   - When you switch tickers via TradingView plugin → TWS windows also switch
+   - To disable: **TWS → No Group**
+
+**Troubleshooting:**
+- Check debug logs: **TWS → Query Available Groups...** to check if groups are active
+- TWS Mosaic may have a default group assigned. Check and change if needed.
+- If no groups found: Make sure TWS windows have Display Groups enabled (step 1)
 
 ### Safety Features
 - Cannot exceed 100% of budget (warning toast)

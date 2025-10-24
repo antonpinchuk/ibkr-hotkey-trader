@@ -22,6 +22,7 @@ class TickerDataManager;
 class GlobalHotkeyManager;
 class SystemTrayManager;
 class RemoteControlServer;
+class DisplayGroupManager;
 
 class MainWindow : public QMainWindow
 {
@@ -68,6 +69,7 @@ private slots:
     void onClose100();
     void onCancelOrders();
     void onToggleShowCancelledAndZeroPositions(bool checked);
+    void onDisplayGroupSelected(int groupId);
     void onSplitterMoved();
 
     // Ticker activation
@@ -153,6 +155,7 @@ private:
     GlobalHotkeyManager *m_globalHotkeyManager;
     SystemTrayManager *m_systemTrayManager;
     RemoteControlServer *m_remoteControlServer;
+    DisplayGroupManager *m_displayGroupManager;
 
     QString m_currentSymbol;
     QMap<QString, QString> m_symbolToExchange;   // symbol -> primaryExchange

@@ -112,8 +112,10 @@ public:
     void verifyCompleted(bool isSuccessful, const std::string& errorText) override {}
     void verifyAndAuthMessageAPI(const std::string& apiData, const std::string& xyzChallange) override {}
     void verifyAndAuthCompleted(bool isSuccessful, const std::string& errorText) override {}
-    void displayGroupList(int reqId, const std::string& groups) override {}
-    void displayGroupUpdated(int reqId, const std::string& contractInfo) override {}
+
+    // Display Groups
+    void displayGroupList(int reqId, const std::string& groups) override;
+    void displayGroupUpdated(int reqId, const std::string& contractInfo) override;
 
     // Position Multi - Not used but must be implemented
     void positionMulti(int reqId, const std::string& account, const std::string& modelCode, const Contract& contract, Decimal pos, double avgCost) override {}
@@ -210,8 +212,12 @@ signals:
     void managedAccountsReceived(const QString& accounts);
 
     void contractDetailsReceived(int reqId, const QString& symbol, const QString& exchange, int conId);
+    void contractSearchFinished(int reqId); // Emitted when contract details search is complete
     void symbolSearchResults(int reqId, const QStringList& symbols);
     void symbolSamplesReceived(int reqId, const QList<QPair<QString, QPair<QString, QString>>>& results); // symbol, (company name, exchange)
+
+    void displayGroupListReceived(int reqId, const QString& groups);
+    void displayGroupUpdatedReceived(int reqId, const QString& contractInfo);
 
 private:
     IBKRClient *m_client;

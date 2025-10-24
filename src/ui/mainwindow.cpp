@@ -1,5 +1,6 @@
 #include "ui/mainwindow.h"
 #include "client/ibkrclient.h"
+#include "client/displaygroupmanager.h"
 #include "trading/tradingmanager.h"
 #include "widgets/tickerlistwidget.h"
 #include "widgets/chartwidget.h"
@@ -71,6 +72,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Try to connect to TWS on startup
     m_ibkrClient->connect(settings.host(), settings.port(), settings.clientId());
+
+    // Initialize Display Group Manager (TWS UI synchronization)
+    m_displayGroupManager = new DisplayGroupManager(m_ibkrClient, this);
 
     // Initialize and start Remote Control Server
     m_remoteControlServer = new RemoteControlServer(m_ibkrClient, m_tickerDataManager, m_tickerList, this);
@@ -235,6 +239,62 @@ void MainWindow::setupMenuBar()
     m_showCancelledOrdersAction->setShortcut(QKeySequence("Ctrl+Shift+."));
     m_showCancelledOrdersAction->setChecked(Settings::instance().showCancelledOrders());
     connect(m_showCancelledOrdersAction, &QAction::triggered, this, &MainWindow::onToggleShowCancelledAndZeroPositions);
+
+    // TWS menu (Display Groups)
+    QMenu *twsMenu = menuBar()->addMenu("TWS");
+
+    QActionGroup *groupActionGroup = new QActionGroup(this);
+    groupActionGroup->setExclusive(true);
+
+    // No Group option
+    QAction *noGroupAction = twsMenu->addAction("No Group");
+    noGroupAction->setCheckable(true);
+    noGroupAction->setChecked(Settings::instance().displayGroupId() == 0);
+    noGroupAction->setData(0);
+    groupActionGroup->addAction(noGroupAction);
+    connect(noGroupAction, &QAction::triggered, this, [this]() { onDisplayGroupSelected(0); });
+
+    twsMenu->addSeparator();
+
+    // Group 1-7 with hotkeys F1-F7
+    struct GroupInfo {
+        int id;
+        QString hotkey;
+    };
+
+    QList<GroupInfo> groups = {
+        {1, "Ctrl+Alt+F1"},
+        {2, "Ctrl+Alt+F2"},
+        {3, "Ctrl+Alt+F3"},
+        {4, "Ctrl+Alt+F4"},
+        {5, "Ctrl+Alt+F5"},
+        {6, "Ctrl+Alt+F6"},
+        {7, "Ctrl+Alt+F7"}
+    };
+
+    int currentGroupId = Settings::instance().displayGroupId();
+
+    for (const auto& group : groups) {
+        QAction *action = twsMenu->addAction(QString("Group %1").arg(group.id));
+        action->setCheckable(true);
+        action->setChecked(currentGroupId == group.id);
+        action->setShortcut(QKeySequence(group.hotkey));
+        action->setData(group.id);
+        groupActionGroup->addAction(action);
+        connect(action, &QAction::triggered, this, [this, group]() { onDisplayGroupSelected(group.id); });
+    }
+
+    twsMenu->addSeparator();
+
+    // Query Display Groups (for debugging)
+    QAction *queryGroupsAction = twsMenu->addAction("Query Available Groups...");
+    connect(queryGroupsAction, &QAction::triggered, this, [this]() {
+        m_displayGroupManager->queryDisplayGroups();
+        QMessageBox::information(this, "Display Groups",
+            "Querying TWS Display Groups...\n\nCheck logs for available groups.\n\n"
+            "If no groups are shown, make sure TWS windows (Market Data, Level 2, News) "
+            "have Display Groups enabled (View → Display Groups → Group 1).");
+    });
 
     QMenu *helpMenu = menuBar()->addMenu("Help");
 
@@ -622,6 +682,10 @@ void MainWindow::onTickerActivated(const QString& symbol)
     if (!exchange.isEmpty()) {
         m_tradingManager->setSymbolExchange(symbol, exchange);
     }
+
+    // Synchronize TWS Display Group (if enabled)
+    int conId = m_tickerDataManager->getContractId(symbol);
+    m_displayGroupManager->updateActiveSymbol(symbol, exchange, conId);
 }
 
 void MainWindow::onPriceUpdated(const QString& symbol, double price, double changePercent, double bid, double ask, double mid)
@@ -868,6 +932,23 @@ void MainWindow::onToggleShowCancelledAndZeroPositions(bool checked)
     Settings::instance().setShowCancelledOrders(checked);
     Settings::instance().save();
     m_orderHistory->setShowCancelledAndZeroPositions(checked);
+}
+
+void MainWindow::onDisplayGroupSelected(int groupId)
+{
+    Settings& settings = Settings::instance();
+    settings.setDisplayGroupId(groupId);
+    settings.save();
+
+    QString groupName = groupId == 0 ? "No Group" : QString("Group %1").arg(groupId);
+    LOG_INFO(QString("TWS Display Group changed to: %1").arg(groupName));
+
+    // If we have an active ticker, immediately sync to the new group
+    if (!m_currentSymbol.isEmpty()) {
+        QString exchange = m_tickerDataManager->getExchange(m_currentSymbol);
+        int conId = m_tickerDataManager->getContractId(m_currentSymbol);
+        m_displayGroupManager->updateActiveSymbol(m_currentSymbol, exchange, conId);
+    }
 }
 
 void MainWindow::onSplitterMoved()

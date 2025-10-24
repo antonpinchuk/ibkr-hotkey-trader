@@ -344,7 +344,7 @@ void IBKRWrapper::contractDetails(int reqId, const ContractDetails& contractDeta
 
 void IBKRWrapper::contractDetailsEnd(int reqId)
 {
-    qDebug() << "Contract details end for reqId:" << reqId;
+    emit contractSearchFinished(reqId);
 }
 
 void IBKRWrapper::bondContractDetails(int reqId, const ContractDetails& contractDetails)
@@ -394,7 +394,25 @@ void IBKRWrapper::symbolSamples(int reqId, const std::vector<ContractDescription
         }
 
         results.append(qMakePair(symbol, qMakePair(companyName, exchange)));
+
+        // Emit contract details for Display Groups (so we have conId)
+        emit contractDetailsReceived(reqId, symbol, exchange, desc.contract.conId);
     }
 
     emit symbolSamplesReceived(reqId, results);
+}
+
+// Display Groups
+void IBKRWrapper::displayGroupList(int reqId, const std::string& groups)
+{
+    QString groupsStr = QString::fromStdString(groups);
+    LOG_DEBUG(QString("Display groups received (reqId=%1): %2").arg(reqId).arg(groupsStr));
+    emit displayGroupListReceived(reqId, groupsStr);
+}
+
+void IBKRWrapper::displayGroupUpdated(int reqId, const std::string& contractInfo)
+{
+    QString contractStr = QString::fromStdString(contractInfo);
+    // Display group update - no logging (happens frequently)
+    emit displayGroupUpdatedReceived(reqId, contractStr);
 }

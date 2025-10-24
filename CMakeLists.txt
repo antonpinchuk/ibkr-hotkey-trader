@@ -131,6 +131,8 @@ set(SOURCES
     src/client/ibkrclient.h
     src/client/ibkrwrapper.cpp
     src/client/ibkrwrapper.h
+    src/client/displaygroupmanager.cpp
+    src/client/displaygroupmanager.h
     # Trading
     src/trading/tradingmanager.cpp
     src/trading/tradingmanager.h

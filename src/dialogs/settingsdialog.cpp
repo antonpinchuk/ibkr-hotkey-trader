@@ -241,6 +241,7 @@ void SettingsDialog::saveSettings()
     settings.setPort(m_portSpin->value());
     settings.setClientId(m_clientIdSpin->value());
     settings.setRemoteControlPort(m_remoteControlPortSpin->value());
+
     settings.save();
 }
 

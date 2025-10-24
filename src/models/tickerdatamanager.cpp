@@ -65,6 +65,8 @@ TickerDataManager::TickerDataManager(IBKRClient* client, QObject* parent)
     connect(m_client, &IBKRClient::historicalDataFinished, this, &TickerDataManager::onHistoricalDataFinished);
     connect(m_client, &IBKRClient::realTimeBarReceived, this, &TickerDataManager::onRealTimeBarReceived);
     connect(m_client, &IBKRClient::tickByTickUpdated, this, &TickerDataManager::onTickByTickUpdate);
+    connect(m_client, &IBKRClient::symbolFound, this, &TickerDataManager::onContractDetailsReceived);
+    connect(m_client, &IBKRClient::symbolSearchFinished, this, &TickerDataManager::onContractSearchFinished);
     connect(m_client, &IBKRClient::connected, this, &TickerDataManager::onReconnected);
 
     // Timer to detect new candle boundaries (aligned to 5s)
@@ -485,6 +487,62 @@ void TickerDataManager::requestMissingBars(const QString& symbol, qint64 fromTim
     QString barSize = timeframeToBarSize(m_currentTimeframe);
     LOG_DEBUG(QString("Requesting missing bars for %1: from=%2 to=%3").arg(symbol).arg(fromTime).arg(toTime));
     m_client->requestHistoricalData(reqId, symbol, endTimeStr, duration, barSize);
+}
+
+void TickerDataManager::onContractDetailsReceived(int reqId, const QString& symbol, const QString& exchange, int conId)
+{
+    // Initialize search info if needed
+    if (!m_contractSearches.contains(reqId)) {
+        m_contractSearches[reqId] = ContractSearchInfo();
+    }
+
+    ContractSearchInfo& searchInfo = m_contractSearches[reqId];
+    searchInfo.totalCount++;
+
+    // Store contractId for Display Groups
+    // IMPORTANT: Only store if not already set, or if exchange matches our stored exchange
+    // This prioritizes the first match or exact exchange match
+    bool wasStored = false;
+    if (!m_symbolToContractId.contains(symbol)) {
+        // First contract for this symbol
+        m_symbolToContractId[symbol] = conId;
+        wasStored = true;
+    } else if (m_symbolToExchange.contains(symbol) && m_symbolToExchange[symbol] == exchange) {
+        // Exact exchange match - override with this one
+        m_symbolToContractId[symbol] = conId;
+        wasStored = true;
+    }
+
+    // Collect up to 5 contracts for summary log
+    if (wasStored && searchInfo.foundContracts.size() < 5) {
+        searchInfo.foundContracts.append(QString("%1@%2").arg(symbol).arg(exchange));
+    }
+
+    // Also update exchange if not set
+    if (!m_symbolToExchange.contains(symbol)) {
+        m_symbolToExchange[symbol] = exchange;
+    }
+}
+
+void TickerDataManager::onContractSearchFinished(int reqId)
+{
+    // Log summary if we have any contracts
+    if (m_contractSearches.contains(reqId)) {
+        const ContractSearchInfo& searchInfo = m_contractSearches[reqId];
+
+        if (searchInfo.totalCount > 0) {
+            QString contractList = searchInfo.foundContracts.join(", ");
+            if (searchInfo.totalCount > searchInfo.foundContracts.size()) {
+                contractList += QString(" ...and %1 more").arg(searchInfo.totalCount - searchInfo.foundContracts.size());
+            }
+            LOG_DEBUG(QString("Contract search complete: found %1 contract(s) [%2]")
+                .arg(searchInfo.totalCount)
+                .arg(contractList));
+        }
+
+        // Clean up
+        m_contractSearches.remove(reqId);
+    }
 }
 
 void TickerDataManager::onReconnected()

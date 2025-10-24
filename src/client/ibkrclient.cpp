@@ -110,7 +110,12 @@ void IBKRClient::setupSignals()
         emit accountsReceived(accounts);
     });
     QObject::connect(m_wrapper.get(), &IBKRWrapper::contractDetailsReceived, this, &IBKRClient::symbolFound);
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::contractSearchFinished, this, &IBKRClient::symbolSearchFinished);
     QObject::connect(m_wrapper.get(), &IBKRWrapper::symbolSamplesReceived, this, &IBKRClient::symbolSearchResultsReceived);
+
+    // Display Groups
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::displayGroupListReceived, this, &IBKRClient::displayGroupListReceived);
+    QObject::connect(m_wrapper.get(), &IBKRWrapper::displayGroupUpdatedReceived, this, &IBKRClient::displayGroupUpdatedReceived);
 }
 
 void IBKRClient::connect(const QString& host, int port, int clientId)
@@ -457,4 +462,32 @@ void IBKRClient::searchSymbol(int reqId, const QString& pattern)
 
     // Use reqMatchingSymbols for flexible pattern-based search
     m_socket->reqMatchingSymbols(reqId, pattern.toStdString());
+}
+
+// Display Groups (TWS UI synchronization)
+void IBKRClient::queryDisplayGroups(int reqId)
+{
+    if (!m_socket->isConnected()) return;
+    m_socket->queryDisplayGroups(reqId);
+}
+
+void IBKRClient::subscribeToGroupEvents(int reqId, int groupId)
+{
+    if (!m_socket->isConnected()) return;
+    // Subscribe to display group events (no logging - happens frequently)
+    m_socket->subscribeToGroupEvents(reqId, groupId);
+}
+
+void IBKRClient::updateDisplayGroup(int reqId, const QString& contractInfo)
+{
+    if (!m_socket->isConnected()) return;
+    // Update display group (no logging - happens frequently)
+    m_socket->updateDisplayGroup(reqId, contractInfo.toStdString());
+}
+
+void IBKRClient::unsubscribeFromGroupEvents(int reqId)
+{
+    if (!m_socket->isConnected()) return;
+    LOG_DEBUG(QString("Unsubscribing from display group (reqId=%1)").arg(reqId));
+    m_socket->unsubscribeFromGroupEvents(reqId);
 }
