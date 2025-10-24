@@ -4,12 +4,28 @@ let settings = {
   webhookUrl: 'http://127.0.0.1:8496',
   exchanges: '',
   customWishlists: '',
-  coloredWishlists: []
+  coloredWishlists: [],
+  exchangeMapping: [
+    { from: 'NYSE Arca', to: 'AMEX' }
+  ]
 };
 
 // Connection state tracking
 let isConnected = true;
 let lastConnectionError = null;
+
+// Exchange conversion functions
+function convertExchangeTWtoIBKR(exchange) {
+  if (!exchange) return exchange;
+  const mapping = settings.exchangeMapping.find(m => m.from === exchange);
+  return mapping ? mapping.to : exchange;
+}
+
+function convertExchangeIBKRtoTW(exchange) {
+  if (!exchange) return exchange;
+  const mapping = settings.exchangeMapping.find(m => m.to === exchange);
+  return mapping ? mapping.from : exchange;
+}
 
 // Load settings on startup
 chrome.runtime.onStartup.addListener(loadSettings);
@@ -21,7 +37,10 @@ async function loadSettings() {
       webhookUrl: 'http://127.0.0.1:8496',
       exchanges: '',
       customWishlists: '',
-      coloredWishlists: []
+      coloredWishlists: [],
+      exchangeMapping: [
+        { from: 'NYSE Arca', to: 'AMEX' }
+      ]
     });
     settings = stored;
     console.log('[IBKR Extension] Settings loaded:', settings);
@@ -100,13 +119,16 @@ async function fetchWithConnectionTracking(url, options) {
 async function handleTickerChange(tickerData) {
   const { symbol, exchange } = tickerData;
 
+  // Convert exchange from TradingView to IBKR format
+  const ibkrExchange = convertExchangeTWtoIBKR(exchange);
+
   // Always add/select ticker regardless of criteria
   // Criteria are only used for removal during wishlist sync
   try {
     const putResponse = await fetchWithConnectionTracking(`${settings.webhookUrl}/ticker`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbol, exchange })
+      body: JSON.stringify({ symbol, exchange: ibkrExchange })
     });
 
     if (putResponse.status === 404) {
@@ -114,26 +136,26 @@ async function handleTickerChange(tickerData) {
       const postResponse = await fetchWithConnectionTracking(`${settings.webhookUrl}/ticker`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbol, exchange })
+        body: JSON.stringify({ symbol, exchange: ibkrExchange })
       });
 
       if (postResponse.ok) {
-        console.log(`[IBKR Extension] Selected ${exchange}:${symbol}`);
+        console.log(`[IBKR Extension] Selected ${exchange}:${symbol} (IBKR: ${ibkrExchange}:${symbol})`);
         await chrome.storage.local.set({
           activeTicker: `${exchange}:${symbol}`,
           lastSync: Date.now()
         });
       } else {
-        console.log(`[IBKR Extension] Failed to add ${exchange}:${symbol}:`, postResponse.status);
+        console.log(`[IBKR Extension] Failed to add ${exchange}:${symbol} (IBKR: ${ibkrExchange}:${symbol}):`, postResponse.status);
       }
     } else if (putResponse.ok) {
-      console.log(`[IBKR Extension] Selected ${exchange}:${symbol}`);
+      console.log(`[IBKR Extension] Selected ${exchange}:${symbol} (IBKR: ${ibkrExchange}:${symbol})`);
       await chrome.storage.local.set({
         activeTicker: `${exchange}:${symbol}`,
         lastSync: Date.now()
       });
     } else {
-      console.log(`[IBKR Extension] Failed to select ${exchange}:${symbol}:`, putResponse.status);
+      console.log(`[IBKR Extension] Failed to select ${exchange}:${symbol} (IBKR: ${ibkrExchange}:${symbol}):`, putResponse.status);
     }
   } catch (error) {
     // Connection error already logged by fetchWithConnectionTracking
@@ -164,12 +186,22 @@ async function handleWishlistSync(data) {
       matchesExchangeCriteria(ticker.exchange)
     );
   } else if (type === 'colored') {
-    if (matchesWishlistCriteria({ type: 'colored', color })) {
-      filteredTickers = wishlists.symbols.map(symbolStr => {
-        const [exchange, symbol] = symbolStr.split(':');
-        return { symbol, exchange };
-      }).filter(ticker => matchesExchangeCriteria(ticker.exchange));
+    // Skip sync if this colored wishlist is not in our criteria
+    if (!matchesWishlistCriteria({ type: 'colored', color })) {
+      console.log(`[IBKR Extension] Skipping sync for ${color} wishlist (not in criteria)`);
+      return;
     }
+
+    // For colored wishlist sync, we don't do cleanup because we only see one wishlist
+    // Cleanup only happens on 'all' type (full wishlist sync)
+    console.log(`[IBKR Extension] Colored wishlist ${color} sync - no cleanup needed`);
+    return;
+  }
+
+  // Only do cleanup for 'all' type (full wishlist sync)
+  if (type !== 'all') {
+    console.log(`[IBKR Extension] Skipping cleanup for sync type: ${type}`);
+    return;
   }
 
   // Get current active ticker from storage
@@ -182,17 +214,38 @@ async function handleWishlistSync(data) {
     if (!response.ok) return;
 
     const appTickers = await response.json();
-    const tvTickerSet = new Set(filteredTickers.map(t => `${t.exchange}:${t.symbol}`));
+
+    // Convert filtered tickers to IBKR format and create set
+    const tvTickerSet = new Set(filteredTickers.map(t => {
+      const ibkrExchange = convertExchangeTWtoIBKR(t.exchange);
+      return `${ibkrExchange}:${t.symbol}`;
+    }));
+
+    console.log('[IBKR Extension] Wishlist sync:', {
+      type,
+      color,
+      filteredTickersCount: filteredTickers.length,
+      tvTickerSet: Array.from(tvTickerSet),
+      appTickersCount: appTickers.length
+    });
+
     const removed = [];
 
     for (const appTicker of appTickers) {
-      const tickerKey = `${appTicker.exchange}:${appTicker.symbol}`;
+      // Convert IBKR exchange back to TW format for active ticker comparison
+      const twExchange = convertExchangeIBKRtoTW(appTicker.exchange);
+      const twTickerKey = `${twExchange}:${appTicker.symbol}`;
+      const ibkrTickerKey = `${appTicker.exchange}:${appTicker.symbol}`;
 
       // Skip if this is the active ticker (never remove active ticker)
-      if (tickerKey === activeTicker) continue;
+      if (twTickerKey === activeTicker) {
+        console.log(`[IBKR Extension] Skipping active ticker: ${twTickerKey}`);
+        continue;
+      }
 
       // Remove if not in filtered wishlists
-      if (!tvTickerSet.has(tickerKey)) {
+      if (!tvTickerSet.has(ibkrTickerKey)) {
+        console.log(`[IBKR Extension] Ticker ${ibkrTickerKey} not in filtered set, removing...`);
         try {
           const deleteResponse = await fetchWithConnectionTracking(`${settings.webhookUrl}/ticker`, {
             method: 'DELETE',
@@ -201,9 +254,9 @@ async function handleWishlistSync(data) {
           });
 
           if (deleteResponse.status === 204) {
-            removed.push(tickerKey);
+            removed.push(twTickerKey);
           } else {
-            console.log(`[IBKR Extension] Failed to remove ${tickerKey}:`, deleteResponse.status);
+            console.log(`[IBKR Extension] Failed to remove ${twTickerKey}:`, deleteResponse.status);
           }
         } catch (error) {
           // Connection error already logged by fetchWithConnectionTracking
@@ -235,11 +288,14 @@ async function handleBulkRemove(data) {
     // Skip if this is the active ticker (never remove active ticker)
     if (tickerKey === activeTicker) continue;
 
+    // Convert exchange from TradingView to IBKR format
+    const ibkrExchange = convertExchangeTWtoIBKR(exchange);
+
     try {
       const deleteResponse = await fetchWithConnectionTracking(`${settings.webhookUrl}/ticker`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbol, exchange })
+        body: JSON.stringify({ symbol, exchange: ibkrExchange })
       });
 
       if (deleteResponse.status === 204) {
@@ -282,10 +338,14 @@ function matchesColoredWishlist(color) {
   return settings.coloredWishlists.includes(color);
 }
 
-// Check exchange criteria
+// Check exchange criteria (uses contains instead of equals)
 function matchesExchangeCriteria(exchange) {
   if (!settings.exchanges.trim()) return true; // Empty = all exchanges
 
   const allowedExchanges = settings.exchanges.split(',').map(e => e.trim().toUpperCase());
-  return allowedExchanges.includes(exchange.toUpperCase());
+  const exchangeUpper = exchange.toUpperCase();
+
+  // Check if any allowed exchange is contained in the ticker's exchange
+  // Example: "NYSE Arca" contains "NYSE", so it matches
+  return allowedExchanges.some(allowed => exchangeUpper.includes(allowed));
 }

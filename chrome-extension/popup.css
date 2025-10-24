@@ -200,3 +200,39 @@ button {
   color: #333;
   font-weight: 600;
 }
+
+.mapping-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.mapping-row input[type="text"] {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.mapping-row span {
+  color: #888;
+  font-weight: bold;
+}
+
+.btn-remove {
+  padding: 4px 10px;
+  background: #dc3545;
+  color: white;
+  font-size: 16px;
+  line-height: 1;
+  min-width: auto;
+  width: auto;
+}
+
+.btn-remove:hover {
+  background: #c82333;
+}
+
+#addMappingBtn {
+  margin-top: 8px;
+  font-size: 12px;
+}

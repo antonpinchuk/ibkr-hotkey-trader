@@ -3,7 +3,10 @@ const DEFAULT_SETTINGS = {
   webhookUrl: 'http://127.0.0.1:8496',
   exchanges: '',
   customWishlists: '',
-  coloredWishlists: []
+  coloredWishlists: [],
+  exchangeMapping: [
+    { from: 'NYSE Arca', to: 'AMEX' }
+  ]
 };
 
 // Load settings on popup open
@@ -29,6 +32,51 @@ async function loadSettings() {
       checkbox.checked = settings.coloredWishlists.includes(color);
     }
   });
+
+  // Load exchange mapping
+  renderExchangeMapping(settings.exchangeMapping || DEFAULT_SETTINGS.exchangeMapping);
+}
+
+// Render exchange mapping UI
+function renderExchangeMapping(mappings) {
+  const container = document.getElementById('exchangeMappingContainer');
+  container.innerHTML = '';
+
+  mappings.forEach((mapping, index) => {
+    const row = document.createElement('div');
+    row.className = 'mapping-row';
+    row.innerHTML = `
+      <input type="text" class="mapping-from" placeholder="TradingView Exchange" value="${mapping.from}" data-index="${index}">
+      <span>→</span>
+      <input type="text" class="mapping-to" placeholder="IBKR Exchange" value="${mapping.to}" data-index="${index}">
+      <button class="btn-remove" data-index="${index}">×</button>
+    `;
+    container.appendChild(row);
+  });
+
+  // Add event listeners for remove buttons
+  container.querySelectorAll('.btn-remove').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const index = parseInt(e.target.dataset.index);
+      removeMappingRow(index);
+    });
+  });
+}
+
+// Add new mapping row
+document.getElementById('addMappingBtn').addEventListener('click', async () => {
+  const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
+  const mappings = settings.exchangeMapping || [];
+  mappings.push({ from: '', to: '' });
+  renderExchangeMapping(mappings);
+});
+
+// Remove mapping row
+async function removeMappingRow(index) {
+  const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
+  const mappings = settings.exchangeMapping || [];
+  mappings.splice(index, 1);
+  renderExchangeMapping(mappings);
 }
 
 // Save settings
@@ -37,7 +85,8 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     webhookUrl: document.getElementById('webhookUrl').value.trim() || DEFAULT_SETTINGS.webhookUrl,
     exchanges: document.getElementById('exchanges').value.trim(),
     customWishlists: document.getElementById('customWishlists').value.trim(),
-    coloredWishlists: []
+    coloredWishlists: [],
+    exchangeMapping: []
   };
 
   // Collect selected colors
@@ -48,6 +97,22 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
       settings.coloredWishlists.push(color);
     }
   });
+
+  // Collect exchange mappings
+  const mappingContainer = document.getElementById('exchangeMappingContainer');
+  const mappingRows = mappingContainer.querySelectorAll('.mapping-row');
+  mappingRows.forEach(row => {
+    const from = row.querySelector('.mapping-from').value.trim();
+    const to = row.querySelector('.mapping-to').value.trim();
+    if (from && to) {
+      settings.exchangeMapping.push({ from, to });
+    }
+  });
+
+  // Ensure at least default mapping exists
+  if (settings.exchangeMapping.length === 0) {
+    settings.exchangeMapping = DEFAULT_SETTINGS.exchangeMapping;
+  }
 
   await chrome.storage.sync.set(settings);
 
