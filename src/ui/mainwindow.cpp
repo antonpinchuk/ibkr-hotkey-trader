@@ -629,6 +629,14 @@ void MainWindow::setupConnections()
             m_systemTrayManager->stopBlinking();
         }
     });
+
+    // Handle first tick received - sync Display Group for fast price updates
+    connect(m_tickerDataManager, &TickerDataManager::firstTickReceived, this, [this](const QString& symbol) {
+        // Synchronize TWS Display Group after first tick (when we have conId and fast price is priority)
+        QString exchange = m_tickerDataManager->getExchange(symbol);
+        int conId = m_tickerDataManager->getContractId(symbol);
+        m_displayGroupManager->updateActiveSymbol(symbol, exchange, conId);
+    });
 }
 
 void MainWindow::keyPressEvent(QKeyEvent *event)
@@ -683,9 +691,7 @@ void MainWindow::onTickerActivated(const QString& symbol)
         m_tradingManager->setSymbolExchange(symbol, exchange);
     }
 
-    // Synchronize TWS Display Group (if enabled)
-    int conId = m_tickerDataManager->getContractId(symbol);
-    m_displayGroupManager->updateActiveSymbol(symbol, exchange, conId);
+    // Note: ticker sync in TWS group will happen after first tick is received for better performance  (see onPriceUpdateReceived)
 }
 
 void MainWindow::onPriceUpdated(const QString& symbol, double price, double changePercent, double bid, double ask, double mid)

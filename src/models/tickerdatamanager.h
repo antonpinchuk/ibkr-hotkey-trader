@@ -70,7 +70,8 @@ signals:
     void barsUpdated(const QString& symbol, Timeframe timeframe);
     void currentBarUpdated(const QString& symbol, const CandleBar& bar); // For live tick updates (not in cache)
     void noPriceUpdate(const QString& symbol); // Emitted when no price update received for previous bar
-    void priceUpdateReceived(const QString& symbol); // Emitted when price update received
+    void priceUpdateReceived(const QString& symbol); // Emitted when price update received for current bar
+    void firstTickReceived(const QString& symbol); // Emitted once when first tick is received for a symbol
 
 private slots:
     void onHistoricalBarReceived(int reqId, long time, double open, double high, double low, double close, long volume);

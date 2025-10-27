@@ -372,6 +372,9 @@ void TickerDataManager::onTickByTickUpdate(int reqId, double price, double bid, 
     if (m_realTimeBarsReqId == -1) {
         loadTimeframe(m_currentSymbol, m_currentTimeframe);
         subscribeToRealTimeBars();
+
+        // Emit signal for first tick (used for Display Group sync, etc.)
+        emit firstTickReceived(m_currentSymbol);
     }
 
     qint64 currentTime = QDateTime::currentSecsSinceEpoch();
