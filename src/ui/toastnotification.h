@@ -23,6 +23,7 @@ public:
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
+    void paintEvent(QPaintEvent *event) override;
 
 private slots:
     void fadeOut();
@@ -39,6 +40,8 @@ private:
     QTimer *m_timer;
     Type m_type;
     QString m_message;
+    QString m_bgColor;
+    QString m_borderColor;
 };
 
 #endif // TOASTNOTIFICATION_H

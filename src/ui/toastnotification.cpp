@@ -5,16 +5,20 @@
 #include <QMouseEvent>
 #include <QScreen>
 #include <QApplication>
+#include <QPainter>
+#include <QPainterPath>
 
 QMap<QString, ToastNotification*> ToastNotification::s_activeToasts;
 QList<ToastNotification*> ToastNotification::s_toastList;
 
 ToastNotification::ToastNotification(QWidget *parent)
-    : QWidget(parent, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint)
+    : QWidget(parent) // Child widget, no separate window
     , m_type(Info)
 {
+    // Ensure toast doesn't steal focus or activate parent window
     setAttribute(Qt::WA_ShowWithoutActivating);
     setAttribute(Qt::WA_DeleteOnClose);
+
     setFixedWidth(500);
 
     m_label = new QLabel(this);
@@ -76,39 +80,33 @@ void ToastNotification::showMessage(const QString &message, Type type)
     m_message = message;
     m_label->setText(message);
 
-    QString bgColor;
     QString textColor = "white";
-    QString borderColor;
 
     switch (type) {
     case Info:
-        bgColor = "#2196F3"; // Blue
-        borderColor = "#1976D2";
+        m_bgColor = "#2196F3"; // Blue
+        m_borderColor = "#1976D2";
         break;
     case Warning:
-        bgColor = "#FFC107"; // Yellow
-        borderColor = "#FFA000";
+        m_bgColor = "#FFC107"; // Yellow
+        m_borderColor = "#FFA000";
         textColor = "#333333";
         break;
     case Error:
-        bgColor = "#F44336"; // Red
-        borderColor = "#D32F2F";
+        m_bgColor = "#F44336"; // Red
+        m_borderColor = "#D32F2F";
         break;
     }
 
     setStyleSheet(QString(
-        "ToastNotification { "
-        "   background-color: %1; "
-        "   border: 2px solid %3; "
-        "   border-radius: 8px; "
-        "} "
         "QLabel { "
-        "   color: %2; "
+        "   color: %1; "
         "   font-size: 13px; "
         "   background-color: transparent; "
         "   padding: 0px; "
+        "   border: none; "
         "}"
-    ).arg(bgColor, textColor, borderColor));
+    ).arg(textColor));
 
     // Calculate proper height based on text
     m_label->adjustSize();
@@ -116,9 +114,9 @@ void ToastNotification::showMessage(const QString &message, Type type)
     int totalHeight = labelHeight + 30; // 30 for margins
     setFixedHeight(totalHeight);
 
-    // Position at bottom-right of parent
+    // Position at bottom-right of parent (using parent's rect, not geometry)
     if (parentWidget()) {
-        QRect parentRect = parentWidget()->geometry();
+        QRect parentRect = parentWidget()->rect();
         int x = parentRect.right() - width() - 20;
         int y = parentRect.bottom() - height() - 20;
         move(x, y);
@@ -154,4 +152,23 @@ void ToastNotification::mousePressEvent(QMouseEvent *event)
 {
     Q_UNUSED(event);
     fadeOut();
+}
+
+void ToastNotification::paintEvent(QPaintEvent *event)
+{
+    Q_UNUSED(event);
+
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    // Draw rounded rectangle background
+    QPainterPath path;
+    path.addRoundedRect(rect(), 8, 8);
+
+    // Fill background
+    painter.fillPath(path, QColor(m_bgColor));
+
+    // Draw border
+    painter.setPen(QPen(QColor(m_borderColor), 2));
+    painter.drawPath(path);
 }
