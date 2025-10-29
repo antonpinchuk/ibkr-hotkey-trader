@@ -1,6 +1,6 @@
 # IBKR Hotkey Trader
 
-A reactive hotkey trading application for **Interactive Brokers**, enabling rapid order execution and intraday trading via the TWS API with real-time market data (subscription required).
+A reactive hotkey intraday trading with **TradingView** and **TWS** (InteractiveBrokers Trader Workstation), enabling window symbol sync and qty calculation using real-time market data (subscription required).
 
 ![IBKR Hotkey Trader](doc/images/screenshot.png)
 Windows sync:
@@ -18,32 +18,26 @@ Windows sync:
 - **QTY**: Automatic rounded Qty calculation (%) based on your buying power
 - **TradingView** current symbol synchronization with Hotkey Trader and TWS
 
-Experimental features: portfolio, order history, live chart, statistics
+Experimental features: portfolio, order history, live chart, statistics, debug logs
+
 
 ## Requirements
 
-### System Requirements
-- macOS 10.15+
-- Qt 6.2+
-- CMake 3.16+
-- Protocol Buffers (protobuf) compiler
-- Abseil C++ library
-- C++17 compatible compiler
-
-**Install dependencies:**
-```bash
-brew install cmake qt@6 protobuf abseil
-```
-
-### Interactive Brokers Setup
-1. **Market Data Subscription** (required for real-time data):
+### InteractiveBrokers Setup
+1. **Market Data Subscription**
+   - Required for the app to receive real-time price updates
    - Log in to your IBKR account portal
    - Go to **Account Management → Market Data Subscriptions**
    - Subscribe to a market data package, for example:
-     - **NASDAQ Basic (NP,L1)** - $1.50/month
-     - **US Securities Snapshot and Futures Value Bundle (NP,L1)** - $10/month
-     - Or other packages based on your trading needs
-   - Without a subscription, the app will not receive real-time price updates
+     - **NASDAQ (Network C/UTP)(NP,L1)** - $1.50/month
+     - **NYSE (Network A/CTA) (NP,L1)** - $1.50/month
+     - **NYSE American, BATS, ARCA, IEX, and Regional Exchanges (Network B) (NP,L1)** - $1.50/month
+     - **US Securities Snapshot and Futures Value Bundle (NP,L1)** (alternative to above) - $10/month
+     - **US Equity and Options Add-On Streaming Bundle (NP)** (optional) - $4.5/month
+     - Or other (world-wide) packages based on your trading needs
+   - Extra L2 subscriptions (recommended)
+     - **NASDAQ BX TotalView(NP,L2)** - $3.5/month
+     - **NYSE ArcaBook (NP,L2)** (optional) - $11/month
 
 2. **TWS (Trader Workstation)** or **IB Gateway** installed and running
 
@@ -62,15 +56,29 @@ brew install cmake qt@6 protobuf abseil
    - Check **Remember my answer** if you want all future orders to execute without confirmation
    - This is a TWS security feature to prevent accidental order execution
 
+### System Requirements
+- macOS 10.15+
+- Qt 6.2+
+- CMake 3.16+
+- Protocol Buffers (protobuf) compiler
+- Abseil C++ library
+- C++17 compatible compiler
+
+
 ## Installation
 
-### 1. Clone the Repository
+### 1. Install dev tools
+
+```bash
+brew install cmake qt@6 protobuf abseil
+```
+
+### 2. Clone the Repository and download dependencies
+
 ```bash
 git clone https://github.com/kinect-pro/ibkr-hotkey-trader.git
 cd ibkr-hotkey-trader
 ```
-
-### 2. Download dependencies (One-Time Setup)
 
 The app requires the Interactive Brokers TWS API C++ client library (not included in this repository).
 
@@ -114,7 +122,7 @@ cmake --build . --config Release
 
 ### 4. Running the Application
 
-**Important**: The app connects to TWS via localhost socket connection. TWS must be running separately.
+**Important**: The app connects to TWS via localhost socket connection. TWS must be running.
 
 1. **Start TWS or IB Gateway** and log in
 2. **Ensure API connections are enabled** (see requirements above)
@@ -166,36 +174,37 @@ The application will attempt to connect to TWS automatically.
 
 ### Trading Workflow
 1. **Start** Open TWS and log in to your account first, then launch this app
-2. **Search Symbol**: Press `Cmd+K` to search for a symbol (e.g., "AAPL", "TSLA")
+    - Configure your buying budget and limit offsets in Settings
+3. **Search Symbol**: Press `Cmd+K` to search for a symbol (e.g., "AAPL", "TSLA")
     - Mind the stock name (some symbols can duplicate on different exchange's)
-    - or use TradingView browser plugin
-3. **Switch Symbols**: Click another ticker in the left panel
+    - or use TradingView browser plugin (see below)
+4. **Switch Symbols**: Click another ticker in the left panel
     - Stops live updates for previous symbol and starts for current one
     - Right-click ticker for context menu: Move to Top / Delete
     - or switch symbol in TradingView
     - use TWS group sync (see below)
-4. **Order Type**: Switch between Limit (LMT) and Market (MKT) orders
+5. **Order Type**: Switch between Limit (LMT) and Market (MKT) orders
     - Market orders available only during regular trading hours (9:30-16:00 EST)
-5. **Limit Prices**: values auto-update from live market data
+6. **Limit Prices**: values auto-update from live market data
     - Buy price: Ask + offset (automatically updates from ticks)
     - Sell price: Bid - offset (automatically updates from ticks)
     - Manual override: Click field to enter custom price (stops auto-updates)
-6. **Enter Position**: Press `Shift+Ctrl+Opt+O` (100% of your budget) or `Shift+Ctrl+Opt+P` (50%) to open position
-   - Orders execute at limit set in price fields
-   - Multiple click updates pending order based on live price (useful if price rapidly went upper then ask+10)
+7. **Enter Position**: Press `Shift+Ctrl+Opt+O` (100% of your budget) or `Shift+Ctrl+Opt+P` (50%) to open position
+   - Orders execute at limit that set in price fields
+   - Multiple hotkey press will update pending order based on live price (useful if price rapidly went above ask+10 but you still want to buy)
    - Confirmation toast appears on success/error
-7. **Add to Position**: Press `Shift+Ctrl+Opt+1..0` (5-50% of your buying budget)
+8. **Add to Position**: Press `Shift+Ctrl+Opt+1..0` (5-50% of your buying budget)
    - Only works when you already have open position
-   - Does not allow to exceed buying budget
-   - Multiple click - appends X% to pending order
-8. **Close Position**: Use `Ctrl+Opt+Z/X/C/V` to close position (full or partial)
+   - Does not allow total position to exceed the buying budget
+   - Multiple hotkey press - will append X% to the pending order
+9. **Close Position**: Use `Ctrl+Opt+Z/X/C/V` to close position (full or partial)
    - Qty is calculated based on remain position (not on buying budget)
-   - Multiple click updates pending order based on live price (useful if price rapidly went lower than bid-10)
-9. **Monitor Positions/Orders**: Track in real-time
-   - Select Current ticker or ALl
+   - Multiple hotkey press - will update pending order based on live price (useful if price rapidly went below bid-10 but you still want to sell)
+10. **Monitor Positions/Orders**: Track in real-time
+   - Select Current ticker or All
    - Show/Hide cancelled orders and zero-positions
    - Statistics updated in real-time: win rate, P&L (TODO)
-10. **Monitor Chart**: View real-time candlestick chart (experimental)
+11. **Monitor Chart**: View real-time candlestick chart (experimental)
     - Price lines show current bid/ask/mid
     - Select timeframe (5s to 1D) from dropdown
     - Use mousewheel to zoom horizontally
@@ -210,29 +219,29 @@ To start over use `File → Reset Session` or restart the app.
 #### Safety Features
 - Cannot exceed 100% of buying budget (warning toast)
 - Budget validation against account balance
-- Blocked trading buttons if no tick-by-tick updates received
+- Blocks trading buttons if no tick-by-tick price updates received
 - Automatic reconnection if TWS connection drops
 - Visual warnings for account balance issues
 
 #### TradingView Workflow
 1. Install and configure browser plugin
-2. Tickers will sync automatically (based on plugin wishlist settings)
-3. Current ticker is always visible in MacOS menu bar (mind blinking)
+2. TradingView wishlist and flagged symbols will sync automatically with the app (based on plugin settings)
+3. TradingView current symbol selection is automatically synced with the app, and appeared in MacOS menu bar (mind blinking)
 4. Use hotkeys to trade
 
 (see [chrome-extension/README.md](chrome-extension/README.md))
 
 #### TWS Display Groups (current symbol synchronization)
 
-**Display Groups** allow automatic synchronization of the active ticker between TradingView -> Hotkey Trader app -> TWS windows (where you can have market data, level 2, news, charts etc).
+**Display Groups** allow automatic synchronization of the active ticker between TradingView -> Hotkey Trader app -> TWS windows. Most traders use multiple monitors. I personally have TradingView (10s chart, indicators, screener, wishlists) on the primary monitor and IBKR Trader Workstation (level 2, news, 5m chart, positions and orders) on the secondary monitor. While the Hotkey Trader app is working in background.
 
 **Setup:**
 
 1. **In TWS - Configure Display Groups:**
-   - Open windows you want to sync: Market Data, Level 2, News, Charts
+   - Open layout (new or mosaic) and configure windows
    - For each window:
      - Right-click window title → **View** → **Display Groups** → Select a group (e.g., **Group 1**)
-     - OR click the link icon 🔗 in the window and select a group
+     - OR click the link icon 🔗 in the the app window and select a group
    - The link icon should become **colored** (not gray/white) when active
    - **Important:** All windows must use the **same group number**
 
@@ -242,11 +251,11 @@ To start over use `File → Reset Session` or restart the app.
    - Check mark (✓) shows the active group
 
 3. **Usage:**
-   - When you switch tickers in this app → TWS windows automatically switch too
-   - When you switch tickers via TradingView plugin → app → TWS windows also switch
-   - To disable: **TWS → No Group**
+   - When you switch tickers in Hotkey Trader app → TWS windows automatically switch too
+   - When you switch tickers in TradingView → Hotkey Trader app → TWS windows also switch
+   - To disable select **TWS → No Group** in main menu
 
-**Note**: Synchronization only works during market session, post or pre-market.
+**Important note**: Synchronization only works during market session, post or pre-market.
 
 **Troubleshooting:**
 - Check debug logs: **TWS → Query Available Groups...** to check if groups are active
@@ -257,11 +266,12 @@ To start over use `File → Reset Session` or restart the app.
 ## User Interface
 
 ### Main Window Layout
-- **Top Toolbar**: Trading action buttons (Open 100%/50%, Add 5%-50%, Close 25%-100%, Cancel Orders)
 - **Left Panel**: Today's ticker list with live prices and % change
   - Click ticker to load chart (symbol switching locked when you have open position)
   - Live price updates with color-coded % change indicators
   - Right-click for context menu (Move to Top, Delete)
+- **System Tray** (macOS): Shows current ticker symbol, blinks when price feed stops updating
+- **Top Toolbar**: Trading action buttons (Open 100%/50%, Add 5%-50%, Close 25%-100%, Cancel Orders)
 - **Order Panel**: Order type and buy/sell limit price
 - **Center Panel**: Multi-timeframe candlestick chart
   - Timeframes: 5s, 10s, 30s, 1m, 5m, 15m, 30m, 1H
@@ -275,7 +285,6 @@ To start over use `File → Reset Session` or restart the app.
   - Trade history with filtering and sorting
   - Position tracking with average cost and unrealized P&L
   - Session statistics (win rate, total trades, realized P&L)
-- **System Tray** (macOS): Shows current ticker symbol, blinks when price feed stops updating
 
 ## Troubleshooting
 
@@ -295,6 +304,7 @@ To start over use `File → Reset Session` or restart the app.
 - Ensure you have market data subscriptions for the symbols
 - Check TWS shows live data for the symbol
 - Try restarting the application and TWS
+
 
 ## Development
 
@@ -408,7 +418,7 @@ ibkr-hotkey-trader/
 - **globalhotkeymanager**: System-wide hotkey registration (macOS Carbon API)
 - **systemtraymanager**: macOS status bar integration with blink notifications
 
-### Testing Remote Control API
+### Remote Control API
 
 The Remote Control Server provides REST JSON endpoints for managing tickers remotely. This is useful for TradingView browser plugin integration.
 
@@ -589,6 +599,7 @@ make
 
 ### System traces
 - **User data**: Settings stored in local SQLite database (OS-specific app data folder)
+
 
 ## License
 
