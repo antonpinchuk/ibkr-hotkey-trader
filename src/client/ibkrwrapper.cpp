@@ -54,8 +54,9 @@ void IBKRWrapper::error(int id, time_t errorTime, int errorCode, const std::stri
     // 2104: Market data farm connection is OK
     // 2106: HMDS data farm connection is OK
     // 2158: Sec-def data farm connection is OK
+    // Don't log these - they're just noise during startup
     if (errorCode == 2104 || errorCode == 2106 || errorCode == 2158) {
-        LOG_DEBUG(QString("TWS Status [code=%1]: %2").arg(errorCode).arg(msg));
+        // Silently ignore
     }
     // Filter connection status messages (handled by auto-reconnect)
     // 1100: Connectivity between IB and TWS has been lost
@@ -366,6 +367,7 @@ void IBKRWrapper::managedAccounts(const std::string& accountsList)
 void IBKRWrapper::symbolSamples(int reqId, const std::vector<ContractDescription>& contractDescriptions)
 {
     QList<QPair<QString, QPair<QString, QString>>> results;
+    QMap<QString, int> symbolToConId; // symbol -> conId mapping
 
     for (const auto& desc : contractDescriptions) {
         // Only include stocks
@@ -393,13 +395,17 @@ void IBKRWrapper::symbolSamples(int reqId, const std::vector<ContractDescription
             exchange = QString::fromStdString(desc.contract.exchange);
         }
 
+        int conId = desc.contract.conId;
+
         results.append(qMakePair(symbol, qMakePair(companyName, exchange)));
 
-        // Emit contract details for Display Groups (so we have conId)
-        emit contractDetailsReceived(reqId, symbol, exchange, desc.contract.conId);
+        // Store conId with key "symbol@exchange" for lookup
+        QString key = QString("%1@%2").arg(symbol).arg(exchange);
+        symbolToConId[key] = conId;
     }
 
-    emit symbolSamplesReceived(reqId, results);
+    // Emit with conId map - subscribers can use it to get correct conId
+    emit symbolSamplesReceived(reqId, results, symbolToConId);
 }
 
 // Display Groups

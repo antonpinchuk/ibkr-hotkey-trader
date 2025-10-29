@@ -11,6 +11,8 @@ TradingManager::TradingManager(IBKRClient *client, QObject *parent)
     , m_currentPrice(0.0)
     , m_bidPrice(0.0)
     , m_askPrice(0.0)
+    , m_targetBuyPrice(0.0)
+    , m_targetSellPrice(0.0)
     , m_pendingBuyOrderId(-1)
     , m_pendingSellOrderId(-1)
 {
@@ -41,7 +43,6 @@ void TradingManager::setSymbolExchange(const QString& symbol, const QString& exc
 {
     if (m_currentSymbol == symbol) {
         m_currentExchange = exchange;
-        LOG_DEBUG(QString("Set exchange for %1: %2").arg(symbol).arg(exchange));
     }
 }
 
@@ -53,8 +54,8 @@ void TradingManager::resetTickLogging(int reqId)
 void TradingManager::openPosition(int percentage)
 {
     LOG_DEBUG(QString("openPosition called with percentage: %1").arg(percentage));
-    LOG_DEBUG(QString("Current symbol: %1, askPrice: %2, currentPrice: %3, budget: %4")
-        .arg(m_currentSymbol).arg(m_askPrice).arg(m_currentPrice).arg(getBudget()));
+    LOG_DEBUG(QString("Current symbol: %1, targetBuyPrice: %2, budget: %3")
+        .arg(m_currentSymbol).arg(m_targetBuyPrice).arg(getBudget()));
 
     if (m_currentSymbol.isEmpty()) {
         LOG_WARNING("No symbol selected");
@@ -73,7 +74,7 @@ void TradingManager::openPosition(int percentage)
     LOG_DEBUG(QString("Calculated shares: %1").arg(shares));
 
     if (shares <= 0) {
-        if (m_askPrice <= 0 && m_currentPrice <= 0) {
+        if (m_targetBuyPrice <= 0 && m_currentPrice <= 0) {
             LOG_WARNING("Market data not available");
             emit warning("Market data not available yet. Wait for price updates.");
         } else {
@@ -83,7 +84,9 @@ void TradingManager::openPosition(int percentage)
         return;
     }
 
-    double targetPrice = m_askPrice + (getAskOffset() / 100.0);
+    // Get order type from settings
+    QString orderType = Settings::instance().orderType();
+    double targetPrice = (orderType == "LMT") ? m_targetBuyPrice : 0.0;
 
     // Update existing pending order or place new one
     if (m_pendingBuyOrderId >= 0) {
@@ -96,8 +99,8 @@ void TradingManager::openPosition(int percentage)
 void TradingManager::addToPosition(int percentage)
 {
     LOG_DEBUG(QString("addToPosition called with percentage: %1").arg(percentage));
-    LOG_DEBUG(QString("Current symbol: %1, askPrice: %2, currentPrice: %3, budget: %4, position: %5")
-        .arg(m_currentSymbol).arg(m_askPrice).arg(m_currentPrice).arg(getBudget()).arg(getCurrentPosition()));
+    LOG_DEBUG(QString("Current symbol: %1, targetBuyPrice: %2, budget: %3, position: %4")
+        .arg(m_currentSymbol).arg(m_targetBuyPrice).arg(getBudget()).arg(getCurrentPosition()));
 
     if (m_currentSymbol.isEmpty()) {
         LOG_WARNING("No symbol selected");
@@ -116,7 +119,7 @@ void TradingManager::addToPosition(int percentage)
     LOG_DEBUG(QString("Calculated additional shares: %1").arg(additionalShares));
 
     if (additionalShares <= 0) {
-        if (m_askPrice <= 0 && m_currentPrice <= 0) {
+        if (m_targetBuyPrice <= 0 && m_currentPrice <= 0) {
             LOG_WARNING("Market data not available");
             emit warning("Market data not available yet. Wait for price updates.");
         } else {
@@ -126,7 +129,9 @@ void TradingManager::addToPosition(int percentage)
         return;
     }
 
-    double targetPrice = m_askPrice + (getAskOffset() / 100.0);
+    // Get order type from settings
+    QString orderType = Settings::instance().orderType();
+    double targetPrice = (orderType == "LMT") ? m_targetBuyPrice : 0.0;
 
     // Check if total would exceed 100% of budget
     double currentPosition = getCurrentPosition();
@@ -134,7 +139,7 @@ void TradingManager::addToPosition(int percentage)
     double budget = getBudget();
     double currentValue = currentPosition * m_currentPrice;
     double pendingValue = pendingBuy * m_currentPrice;
-    double additionalValue = additionalShares * targetPrice;
+    double additionalValue = additionalShares * (targetPrice > 0 ? targetPrice : m_currentPrice);
 
     if (currentValue + pendingValue + additionalValue > budget) {
         emit warning("Cannot exceed 100% of budget");
@@ -155,6 +160,9 @@ void TradingManager::addToPosition(int percentage)
 
 void TradingManager::closePosition(int percentage)
 {
+    LOG_DEBUG(QString("closePosition called with percentage: %1").arg(percentage));
+    LOG_DEBUG(QString("Current symbol: %1, targetSellPrice: %2").arg(m_currentSymbol).arg(m_targetSellPrice));
+
     if (m_currentSymbol.isEmpty()) {
         emit warning("No symbol selected");
         return;
@@ -175,7 +183,9 @@ void TradingManager::closePosition(int percentage)
         return;
     }
 
-    double targetPrice = m_bidPrice - (getBidOffset() / 100.0);
+    // Get order type from settings
+    QString orderType = Settings::instance().orderType();
+    double targetPrice = (orderType == "LMT") ? m_targetSellPrice : 0.0;
 
     // Update existing pending order or place new one
     if (m_pendingSellOrderId >= 0) {
@@ -279,11 +289,33 @@ void TradingManager::onTickByTickUpdated(int reqId, double price, double bidPric
     m_bidPrice = bidPrice;
     m_askPrice = askPrice;
 
+    // Auto-update target prices with offsets (will be used if not manually set)
+    m_targetBuyPrice = m_askPrice + (getAskOffset() / 100.0);
+    m_targetSellPrice = m_bidPrice - (getBidOffset() / 100.0);
+
     // Log only first successful tick for each reqId
     if (!m_tickByTickLogged.value(reqId, false)) {
-        LOG_DEBUG(QString("First tick received [reqId=%1, symbol=%2]: bid=%3, ask=%4, price=%5")
-            .arg(reqId).arg(m_currentSymbol).arg(bidPrice).arg(askPrice).arg(price));
+        LOG_DEBUG(QString("First tick received [reqId=%1, symbol=%2]: bid=%3, ask=%4, price=%5, targetBuy=%6, targetSell=%7")
+            .arg(reqId).arg(m_currentSymbol).arg(bidPrice).arg(askPrice).arg(price).arg(m_targetBuyPrice).arg(m_targetSellPrice));
         m_tickByTickLogged[reqId] = true;
+    }
+}
+
+void TradingManager::setTargetBuyPrice(double price)
+{
+    m_targetBuyPrice = price;
+    // Only log when user sets a limit price (not when resetting to 0)
+    if (price > 0) {
+        LOG_INFO(QString("Target buy price set to: %1").arg(price));
+    }
+}
+
+void TradingManager::setTargetSellPrice(double price)
+{
+    m_targetSellPrice = price;
+    // Only log when user sets a limit price (not when resetting to 0)
+    if (price > 0) {
+        LOG_INFO(QString("Target sell price set to: %1").arg(price));
     }
 }
 
@@ -447,13 +479,25 @@ bool TradingManager::isRegularTradingHours() const
 int TradingManager::placeOrder(const QString& action, int quantity, double price)
 {
     bool isRegularHours = isRegularTradingHours();
+
+    // Get order type from settings
+    QString orderType = Settings::instance().orderType();
+
+    // Market orders cannot be placed outside regular trading hours
+    if (orderType == "MKT" && !isRegularHours) {
+        LOG_WARNING("Cannot place market order outside regular trading hours");
+        emit warning("Market orders can only be placed during regular trading hours (9:30-16:00 EST). Please switch to LMT orders or wait until market opens.");
+        return -1;
+    }
+
+    // TIF and outsideRth based on trading hours and order type
     QString tif = isRegularHours ? "DAY" : "GTC";
     bool outsideRth = !isRegularHours;
 
-    LOG_INFO(QString("Placing %1 order: symbol=%2, qty=%3, price=%4, tif=%5, exchange=%6")
-        .arg(action).arg(m_currentSymbol).arg(quantity).arg(price, 0, 'f', 2).arg(tif).arg(m_currentExchange));
+    int orderId = m_client->placeOrder(m_currentSymbol, action, quantity, price, orderType, tif, outsideRth, m_currentExchange);
 
-    int orderId = m_client->placeOrder(m_currentSymbol, action, quantity, price, "LMT", tif, outsideRth, m_currentExchange);
+    LOG_INFO(QString("Order placed: orderId=%1, symbol=%2, action=%3, qty=%4, price=%5, type=%6, tif=%7, outsideRth=%8")
+        .arg(orderId).arg(m_currentSymbol).arg(action).arg(quantity).arg(price, 0, 'f', 2).arg(orderType).arg(tif).arg(outsideRth));
 
     // Store pending order info - will be confirmed via onOrderConfirmed callback
     TradeOrder order;
@@ -500,10 +544,22 @@ void TradingManager::updatePendingOrder(int& pendingOrderId, const QString& acti
 
     // Update order in TWS (uses same orderId - faster than cancel+create)
     bool isRegularHours = isRegularTradingHours();
+
+    // Get order type from settings
+    QString orderType = Settings::instance().orderType();
+
+    // Market orders cannot be updated outside regular trading hours
+    if (orderType == "MKT" && !isRegularHours) {
+        LOG_WARNING("Cannot update market order outside regular trading hours");
+        emit warning("Market orders can only be updated during regular trading hours (9:30-16:00 EST). Please switch to LMT orders or wait until market opens.");
+        return;
+    }
+
+    // TIF and outsideRth based on trading hours and order type
     QString tif = isRegularHours ? "DAY" : "GTC";
     bool outsideRth = !isRegularHours;
 
-    m_client->updateOrder(pendingOrderId, m_currentSymbol, action, quantity, price, "LMT", tif, outsideRth, m_currentExchange);
+    m_client->updateOrder(pendingOrderId, m_currentSymbol, action, quantity, price, orderType, tif, outsideRth, m_currentExchange);
 
     // Update order in memory - will be confirmed via onOrderStatusUpdated callback
     if (m_orders.contains(pendingOrderId)) {

@@ -36,7 +36,7 @@ IBKRClient::~IBKRClient()
 void IBKRClient::setupSignals()
 {
     QObject::connect(m_wrapper.get(), &IBKRWrapper::connected, this, [this]() {
-        LOG_DEBUG("Connection acknowledged by TWS");
+        // Connection acknowledged
     });
 
     QObject::connect(m_wrapper.get(), &IBKRWrapper::apiReady, this, [this](int nextOrderId) {
@@ -45,7 +45,7 @@ void IBKRClient::setupSignals()
         m_nextOrderId = nextOrderId;
         m_disconnectLogged = false; // Reset disconnect flag on successful connection
         m_wrapper->resetSession(); // Reset session tracking (logs, etc.)
-        LOG_INFO(QString("TWS API ready, next order ID: %1").arg(nextOrderId));
+        LOG_INFO(QString("Connected to TWS (next order ID: %1)").arg(nextOrderId));
         // Request managed accounts to get active account (after API is ready)
         requestManagedAccounts();
         // Bind manual orders automatically
@@ -89,12 +89,15 @@ void IBKRClient::setupSignals()
         if (!accountList.isEmpty()) {
             QString newAccount = accountList.first().trimmed();
             if (!newAccount.isEmpty()) {
-                m_activeAccount = newAccount;
-                LOG_DEBUG(QString("Active account set to: %1").arg(m_activeAccount));
-                emit activeAccountChanged(m_activeAccount);
-                // Request account updates (balance + positions)
-                LOG_DEBUG(QString("Subscribing to account updates for: %1").arg(m_activeAccount));
-                requestAccountUpdates(true, m_activeAccount);
+                // Only log and subscribe if account changed
+                if (m_activeAccount != newAccount) {
+                    m_activeAccount = newAccount;
+                    LOG_DEBUG(QString("Active account set to: %1").arg(m_activeAccount));
+                    emit activeAccountChanged(m_activeAccount);
+                    // Request account updates (balance + positions)
+                    LOG_DEBUG(QString("Subscribing to account updates for: %1").arg(m_activeAccount));
+                    requestAccountUpdates(true, m_activeAccount);
+                }
             } else {
                 m_activeAccount = "N/A";
                 LOG_WARNING("No active account available from TWS");
@@ -124,8 +127,6 @@ void IBKRClient::connect(const QString& host, int port, int clientId)
     m_port = port;
     m_clientId = clientId;
 
-    LOG_DEBUG(QString("Connecting to TWS at %1:%2 with clientId %3").arg(host).arg(port).arg(clientId));
-
     bool connected = m_socket->eConnect(host.toStdString().c_str(), port, clientId, false);
 
     if (connected) {
@@ -134,7 +135,6 @@ void IBKRClient::connect(const QString& host, int port, int clientId)
         m_reader->start();
 
         m_messageTimer->start();
-        LOG_DEBUG("TWS connection initiated, waiting for API ready");
     } else {
         // Don't log here - detailed error will come from IBKRWrapper
         // Don't emit error here - detailed error will come from IBKRWrapper
@@ -299,9 +299,6 @@ int IBKRClient::placeOrder(const QString& symbol, const QString& action, int qua
         return -1;
     }
 
-    LOG_INFO(QString("IBKRClient::placeOrder - symbol=%1, action=%2, qty=%3, limitPrice=%4, type=%5, tif=%6, outsideRth=%7, primaryExch=%8")
-        .arg(symbol).arg(action).arg(quantity).arg(limitPrice, 0, 'f', 2).arg(orderType).arg(tif).arg(outsideRth).arg(primaryExchange));
-
     Contract contract;
     contract.symbol = symbol.toStdString();
     contract.secType = "STK";
@@ -343,12 +340,6 @@ int IBKRClient::placeOrder(const QString& symbol, const QString& action, int qua
     order.goodTillDate = "";
 
     int orderId = m_nextOrderId++;
-
-    LOG_INFO(QString("Sending order to TWS: orderId=%1, action=%2, qty=%3, totalQty=%4, type=%5, lmt=%6, tif=%7")
-        .arg(orderId).arg(QString::fromStdString(order.action)).arg(quantity)
-        .arg(order.totalQuantity).arg(QString::fromStdString(order.orderType))
-        .arg(order.lmtPrice, 0, 'f', 2).arg(QString::fromStdString(order.tif)));
-
     m_socket->placeOrder(orderId, contract, order);
 
     return orderId;
@@ -361,9 +352,6 @@ void IBKRClient::updateOrder(int orderId, const QString& symbol, const QString& 
         LOG_WARNING("Cannot update order - not connected to TWS");
         return;
     }
-
-    LOG_INFO(QString("IBKRClient::updateOrder - orderId=%1, symbol=%2, action=%3, qty=%4, limitPrice=%5, type=%6, tif=%7, outsideRth=%8, primaryExch=%9")
-        .arg(orderId).arg(symbol).arg(action).arg(quantity).arg(limitPrice, 0, 'f', 2).arg(orderType).arg(tif).arg(outsideRth).arg(primaryExchange));
 
     Contract contract;
     contract.symbol = symbol.toStdString();
@@ -445,14 +433,12 @@ void IBKRClient::requestManagedAccounts()
 void IBKRClient::requestOpenOrders()
 {
     if (!m_socket->isConnected()) return;
-    LOG_DEBUG("Requesting all open orders from TWS");
     m_socket->reqAllOpenOrders();  // Get all orders, not just from this client
 }
 
 void IBKRClient::requestCompletedOrders()
 {
     if (!m_socket->isConnected()) return;
-    LOG_DEBUG("Requesting completed orders from TWS");
     m_socket->reqCompletedOrders(false);  // false = not API-only orders
 }
 

@@ -9,6 +9,7 @@
 class IBKRClient;
 class TickerDataManager;
 class TickerListWidget;
+class SymbolSearchManager;
 
 class RemoteControlServer : public QObject
 {
@@ -16,7 +17,8 @@ class RemoteControlServer : public QObject
 
 public:
     explicit RemoteControlServer(IBKRClient* client, TickerDataManager* tickerDataManager,
-                                 TickerListWidget* tickerList, QObject* parent = nullptr);
+                                 TickerListWidget* tickerList, SymbolSearchManager* searchManager,
+                                 QObject* parent = nullptr);
     ~RemoteControlServer();
 
     bool start(quint16 port);
@@ -24,15 +26,16 @@ public:
     bool isListening() const;
 
 signals:
-    void tickerAddRequested(const QString& symbol, const QString& exchange);
-    void tickerSelectRequested(const QString& symbol);
+    void tickerAddRequested(const QString& symbol, const QString& exchange, int conId = 0);
+    void tickerSelectRequested(const QString& symbol, const QString& exchange);
     void tickerDeleteRequested(const QString& symbol);
 
 private slots:
     void onNewConnection();
     void onReadyRead();
     void onDisconnected();
-    void onSymbolSearchResults(int reqId, const QList<QPair<QString, QPair<QString, QString>>>& results);
+    void onSymbolFound(int callbackId, const QString& symbol, const QString& exchange, int conId);
+    void onSymbolNotFound(int callbackId, const QString& symbol, const QString& exchange);
 
 private:
     struct HttpRequest {
@@ -51,17 +54,17 @@ private:
     void handlePutTicker(QTcpSocket* socket, const QJsonObject& body);
     void handleDeleteTicker(QTcpSocket* socket, const QJsonObject& body);
     void handleGetTicker(QTcpSocket* socket);
-    void handleGetTickerBySymbol(QTcpSocket* socket, const QString& symbol);
+    void handleGetTickerByExchangeAndSymbol(QTcpSocket* socket, const QString& exchange, const QString& symbol);
 
     QTcpServer* m_server;
     IBKRClient* m_client;
     TickerDataManager* m_tickerDataManager;
     TickerListWidget* m_tickerList;
+    SymbolSearchManager* m_searchManager;
 
-    // For async symbol search
-    QMap<int, QTcpSocket*> m_searchReqIdToSocket;
-    QMap<int, QPair<QString, QString>> m_searchReqIdToSymbolExchange; // reqId -> (symbol, exchange)
-    int m_nextSearchReqId;
+    // For async symbol search - callbackId -> socket
+    QMap<int, QTcpSocket*> m_callbackIdToSocket;
+    int m_nextCallbackId;
 };
 
 #endif // REMOTECONTROLSERVER_H

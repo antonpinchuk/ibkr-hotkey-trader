@@ -13,6 +13,10 @@ void TickerItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &op
 
     // Get data from model
     bool isCurrent = index.data(IsCurrentRole).toBool();
+    QString symbol = index.data(SymbolRole).toString();
+    QString exchange = index.data(ExchangeRole).toString();
+    double price = index.data(PriceRole).toDouble();
+    double changePercent = index.data(ChangePercentRole).toDouble();
 
     // Draw background
     if (option.state & QStyle::State_Selected) {
@@ -26,33 +30,36 @@ void TickerItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &op
         painter->fillRect(option.rect, QColor("#FFFFFF"));
     }
 
-    // Get symbol from model
-    QString symbol = index.data(SymbolRole).toString();
-
     // Calculate positions
     int x = option.rect.x() + 8;
-    int y = option.rect.y() + 8;  // Top padding
-    int lineHeight = 17;
+    int y = option.rect.y() + 6;  // Top padding
+    int lineHeight = 18;
 
-    // Draw symbol (larger, bold if current)
+    // LINE 1: Symbol (bold) + Exchange (gray, normal)
+    // Draw symbol (bold)
     QFont symbolFont = painter->font();
-    if (isCurrent) {
-        symbolFont.setPointSize(13);
-        symbolFont.setBold(true);
-    } else {
-        symbolFont.setPointSize(12);
-        symbolFont.setBold(false);
-    }
+    symbolFont.setPointSize(isCurrent ? 13 : 12);
+    symbolFont.setBold(true);
     painter->setFont(symbolFont);
     painter->setPen(option.palette.text().color());
     painter->drawText(x, y + lineHeight, symbol);
 
-    // Only draw price and change for the current ticker
-    if (isCurrent) {
-        // Get more data from model
-        double price = index.data(PriceRole).toDouble();
-        double changePercent = index.data(ChangePercentRole).toDouble();
+    // Calculate where exchange should start (after symbol)
+    QFontMetrics symbolMetrics(symbolFont);
+    int symbolWidth = symbolMetrics.horizontalAdvance(symbol);
 
+    // Draw exchange (gray, normal) after symbol with a small gap
+    if (!exchange.isEmpty()) {
+        QFont exchangeFont = painter->font();
+        exchangeFont.setPointSize(isCurrent ? 11 : 10);
+        exchangeFont.setBold(false);
+        painter->setFont(exchangeFont);
+        painter->setPen(QColor("#888"));
+        painter->drawText(x + symbolWidth + 6, y + lineHeight, "@" + exchange);
+    }
+
+    // LINE 2: Price + Change (for all tickers, not just current)
+    if (price > 0) {
         // Format text
         QString priceText = QString("$%1").arg(price, 0, 'f', 2);
 
@@ -72,15 +79,19 @@ void TickerItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &op
         priceFont.setBold(false);
         painter->setFont(priceFont);
         painter->setPen(QColor("#666"));
-        painter->drawText(x, y + lineHeight * 2, priceText);
+        painter->drawText(x, y + lineHeight * 2 + 2, priceText);
 
-        // Draw change percent (even smaller, colored based on up/down)
+        // Calculate where change should start (after price)
+        QFontMetrics priceMetrics(priceFont);
+        int priceWidth = priceMetrics.horizontalAdvance(priceText);
+
+        // Draw change percent (colored based on up/down) after price
         QFont changeFont = painter->font();
-        changeFont.setPointSize(8);
+        changeFont.setPointSize(10);
         painter->setFont(changeFont);
         QColor changeColor = changePercent >= 0 ? QColor("#4CAF50") : QColor("#F44336");
         painter->setPen(changeColor);
-        painter->drawText(x, y + lineHeight * 3, changeText);
+        painter->drawText(x + priceWidth + 8, y + lineHeight * 2 + 2, changeText);
     }
 
     painter->restore();
@@ -90,5 +101,5 @@ QSize TickerItemDelegate::sizeHint(const QStyleOptionViewItem &option, const QMo
 {
     Q_UNUSED(option);
     Q_UNUSED(index);
-    return QSize(150, 68);  // Increased height to accommodate top and bottom padding
+    return QSize(150, 52);  // Height for 2 lines: symbol+exchange and price+change
 }

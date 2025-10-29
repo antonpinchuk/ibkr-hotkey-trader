@@ -1,6 +1,7 @@
 #include "server/remotecontrolserver.h"
 #include "client/ibkrclient.h"
 #include "models/tickerdatamanager.h"
+#include "models/symbolsearchmanager.h"
 #include "widgets/tickerlistwidget.h"
 #include "utils/logger.h"
 #include <QJsonDocument>
@@ -9,16 +10,19 @@
 #include <QHostAddress>
 
 RemoteControlServer::RemoteControlServer(IBKRClient* client, TickerDataManager* tickerDataManager,
-                                         TickerListWidget* tickerList, QObject* parent)
+                                         TickerListWidget* tickerList, SymbolSearchManager* searchManager,
+                                         QObject* parent)
     : QObject(parent)
     , m_server(new QTcpServer(this))
     , m_client(client)
     , m_tickerDataManager(tickerDataManager)
     , m_tickerList(tickerList)
-    , m_nextSearchReqId(10000) // Start from 10000 to avoid conflicts
+    , m_searchManager(searchManager)
+    , m_nextCallbackId(1)
 {
     connect(m_server, &QTcpServer::newConnection, this, &RemoteControlServer::onNewConnection);
-    connect(m_client, &IBKRClient::symbolSearchResultsReceived, this, &RemoteControlServer::onSymbolSearchResults);
+    connect(m_searchManager, &SymbolSearchManager::symbolFound, this, &RemoteControlServer::onSymbolFound);
+    connect(m_searchManager, &SymbolSearchManager::symbolNotFound, this, &RemoteControlServer::onSymbolNotFound);
 }
 
 RemoteControlServer::~RemoteControlServer()
@@ -105,10 +109,35 @@ void RemoteControlServer::onReadyRead()
             socket->disconnectFromHost();
         }
     } else if (request.path.startsWith("/ticker/")) {
-        // Extract symbol from path: /ticker/:symbol
-        QString symbol = request.path.mid(8).toUpper(); // Skip "/ticker/"
+        // Extract exchange and symbol from path: /ticker/{exchange}/{symbol}
+        QString pathPart = request.path.mid(8); // Skip "/ticker/"
+        QStringList parts = pathPart.split('/');
+
         if (request.method == "GET") {
-            handleGetTickerBySymbol(socket, symbol);
+            QString exchange, symbol;
+
+            if (parts.size() == 2) {
+                // Format: /ticker/{exchange}/{symbol}
+                exchange = parts[0].toUpper();
+                symbol = parts[1].toUpper();
+            } else if (parts.size() == 1) {
+                // Backward compatibility: /ticker/{symbol} or /ticker/{symbol@exchange}
+                QString tickerKey = parts[0];
+                if (tickerKey.contains('@')) {
+                    QStringList keyParts = tickerKey.split('@');
+                    symbol = keyParts[0].toUpper();
+                    exchange = keyParts[1].toUpper();
+                } else {
+                    symbol = tickerKey.toUpper();
+                    exchange = ""; // Will find first ticker with this symbol
+                }
+            } else {
+                sendHttpResponse(socket, 400, "Bad Request", QJsonObject(), "Invalid path format");
+                socket->disconnectFromHost();
+                return;
+            }
+
+            handleGetTickerByExchangeAndSymbol(socket, exchange, symbol);
         } else {
             sendHttpResponse(socket, 405, "Method Not Allowed");
             socket->disconnectFromHost();
@@ -222,12 +251,13 @@ void RemoteControlServer::sendHttpResponse(QTcpSocket* socket, int statusCode,
 
 void RemoteControlServer::handlePostTicker(QTcpSocket* socket, const QJsonObject& body)
 {
+    // POST /ticker - Add new ticker to the list
+    // This initiates symbol search in TWS and adds ticker if found
     QString symbol = body["symbol"].toString().toUpper();
     QString exchange = body["exchange"].toString().toUpper();
 
-    // Check if ticker already exists in our list
-    QStringList existingTickers = m_tickerList->getAllSymbols();
-    if (existingTickers.contains(symbol)) {
+    // Check if this exact ticker (symbol@exchange) already exists
+    if (m_tickerList->hasTickerKey(symbol, exchange)) {
         LOG_DEBUG(QString("Remote Control: POST /ticker - symbol=%1, exchange=%2; 409: Ticker already added")
                   .arg(symbol).arg(exchange));
         sendHttpResponse(socket, 409, "Conflict", QJsonObject(), "Ticker already added");
@@ -235,36 +265,36 @@ void RemoteControlServer::handlePostTicker(QTcpSocket* socket, const QJsonObject
         return;
     }
 
-    // Start async symbol search in TWS
-    int reqId = m_nextSearchReqId++;
-    m_searchReqIdToSocket[reqId] = socket;
-    m_searchReqIdToSymbolExchange[reqId] = qMakePair(symbol, exchange);
+    // Start async symbol search via SymbolSearchManager
+    int callbackId = m_nextCallbackId++;
+    m_callbackIdToSocket[callbackId] = socket;
 
-    m_client->searchSymbol(reqId, symbol);
+    m_searchManager->searchSymbolWithExchange(symbol, exchange, callbackId);
 
-    // Response will be sent in onSymbolSearchResults
+    // Response will be sent in onSymbolFound/onSymbolNotFound
 }
 
 void RemoteControlServer::handlePutTicker(QTcpSocket* socket, const QJsonObject& body)
 {
+    // PUT /ticker - Activate existing ticker (make it current/active)
+    // Returns 404 if ticker doesn't exist -> client should then call POST to add it
     QString symbol = body["symbol"].toString().toUpper();
     QString exchange = body["exchange"].toString().toUpper();
 
-    // Check if ticker exists in our list
-    QStringList existingTickers = m_tickerList->getAllSymbols();
-    if (!existingTickers.contains(symbol)) {
-        LOG_DEBUG(QString("Remote Control: PUT /ticker - symbol=%1, exchange=%2; 404: No ticker found")
-                  .arg(symbol).arg(exchange));
-        sendHttpResponse(socket, 404, "Not Found", QJsonObject(), "No ticker found");
+    // Check if this exact ticker (symbol@exchange) exists
+    if (m_tickerList->hasTickerKey(symbol, exchange)) {
+        // Ticker exists - activate it
+        emit tickerSelectRequested(symbol, exchange);
+        LOG_DEBUG(QString("Remote Control: PUT /ticker - symbol=%1, exchange=%2; 200: OK").arg(symbol).arg(exchange));
+        sendHttpResponse(socket, 200, "OK");
         socket->disconnectFromHost();
         return;
     }
 
-    // Activate ticker (make it active)
-    emit tickerSelectRequested(symbol);
-
-    LOG_DEBUG(QString("Remote Control: PUT /ticker - symbol=%1, exchange=%2; 200: OK").arg(symbol).arg(exchange));
-    sendHttpResponse(socket, 200, "OK");
+    // Ticker not found - return 404 to trigger POST from client
+    LOG_DEBUG(QString("Remote Control: PUT /ticker - symbol=%1, exchange=%2; 404: No ticker found")
+              .arg(symbol).arg(exchange));
+    sendHttpResponse(socket, 404, "Not Found", QJsonObject(), "No ticker found");
     socket->disconnectFromHost();
 }
 
@@ -291,76 +321,70 @@ void RemoteControlServer::handleDeleteTicker(QTcpSocket* socket, const QJsonObje
     socket->disconnectFromHost();
 }
 
-void RemoteControlServer::onSymbolSearchResults(int reqId, const QList<QPair<QString, QPair<QString, QString>>>& results)
+void RemoteControlServer::onSymbolFound(int callbackId, const QString& symbol, const QString& exchange, int conId)
 {
-    // Check if this is one of our requests
-    if (!m_searchReqIdToSocket.contains(reqId)) {
+    Q_UNUSED(conId);  // Already stored in TickerDataManager by SymbolSearchManager
+
+    // Get socket for this callback
+    if (!m_callbackIdToSocket.contains(callbackId)) {
         return;
     }
 
-    QTcpSocket* socket = m_searchReqIdToSocket.value(reqId);
-    QPair<QString, QString> symbolExchange = m_searchReqIdToSymbolExchange.value(reqId);
-    QString requestedSymbol = symbolExchange.first;
-    QString requestedExchange = symbolExchange.second;
-
-    // Clean up
-    m_searchReqIdToSocket.remove(reqId);
-    m_searchReqIdToSymbolExchange.remove(reqId);
+    QTcpSocket* socket = m_callbackIdToSocket.value(callbackId);
+    m_callbackIdToSocket.remove(callbackId);
 
     // Check if socket is still valid
     if (!socket || socket->state() != QAbstractSocket::ConnectedState) {
         return;
     }
 
-    // Find matching symbol and exchange
-    bool found = false;
-    QString matchedSymbol;
-    QString matchedExchange;
+    // Add ticker and make it active
+    emit tickerAddRequested(symbol, exchange, conId);
 
-    for (const auto& result : results) {
-        QString symbol = result.first;
-        QString exchange = result.second.second;
+    LOG_DEBUG(QString("Remote Control: POST /ticker - symbol=%1, exchange=%2, conId=%3; 201: Ticker added")
+              .arg(symbol).arg(exchange).arg(conId));
+    sendHttpResponse(socket, 201, "Created");
+    socket->disconnectFromHost();
+}
 
-        if (symbol.toUpper() == requestedSymbol && exchange.toUpper() == requestedExchange) {
-            found = true;
-            matchedSymbol = symbol;
-            matchedExchange = exchange;
-            break;
-        }
-    }
-
-    if (!found) {
-        LOG_DEBUG(QString("Remote Control: POST /ticker - symbol=%1, exchange=%2; 404: No ticker found")
-                  .arg(requestedSymbol).arg(requestedExchange));
-        sendHttpResponse(socket, 404, "Not Found", QJsonObject(), "No ticker found");
-        socket->disconnectFromHost();
+void RemoteControlServer::onSymbolNotFound(int callbackId, const QString& symbol, const QString& exchange)
+{
+    // Get socket for this callback
+    if (!m_callbackIdToSocket.contains(callbackId)) {
         return;
     }
 
-    // Add ticker and make it active
-    emit tickerAddRequested(matchedSymbol, matchedExchange);
+    QTcpSocket* socket = m_callbackIdToSocket.value(callbackId);
+    m_callbackIdToSocket.remove(callbackId);
 
-    LOG_DEBUG(QString("Remote Control: POST /ticker - symbol=%1, exchange=%2; 201: Ticker added")
-              .arg(matchedSymbol).arg(matchedExchange));
-    sendHttpResponse(socket, 201, "Created");
+    // Check if socket is still valid
+    if (!socket || socket->state() != QAbstractSocket::ConnectedState) {
+        return;
+    }
+
+    LOG_DEBUG(QString("Remote Control: POST /ticker - symbol=%1, exchange=%2; 404: No ticker found")
+              .arg(symbol).arg(exchange));
+    sendHttpResponse(socket, 404, "Not Found", QJsonObject(), "No ticker found");
     socket->disconnectFromHost();
 }
 
 void RemoteControlServer::handleGetTicker(QTcpSocket* socket)
 {
-    QStringList symbols = m_tickerList->getAllSymbols();
+    QList<QPair<QString, QString>> tickers = m_tickerList->getAllTickersWithExchange();
 
     // Build JSON array of tickers
     QJsonArray tickersArray;
-    for (const QString& symbol : symbols) {
-        QString exchange = m_tickerDataManager->getExchange(symbol);
+    for (const auto& ticker : tickers) {
+        QString symbol = ticker.first;
+        QString exchange = ticker.second;
+
         QJsonObject tickerObj;
         tickerObj["symbol"] = symbol;
         tickerObj["exchange"] = exchange;
         tickersArray.append(tickerObj);
     }
 
-    LOG_DEBUG(QString("Remote Control: GET /ticker - 200: Returned %1 tickers").arg(symbols.size()));
+    LOG_DEBUG(QString("Remote Control: GET /ticker - 200: Returned %1 tickers").arg(tickers.size()));
 
     // Send response with array in body
     QString response;
@@ -379,23 +403,44 @@ void RemoteControlServer::handleGetTicker(QTcpSocket* socket)
     socket->disconnectFromHost();
 }
 
-void RemoteControlServer::handleGetTickerBySymbol(QTcpSocket* socket, const QString& symbol)
+void RemoteControlServer::handleGetTickerByExchangeAndSymbol(QTcpSocket* socket, const QString& exchange, const QString& symbol)
 {
-    QStringList symbols = m_tickerList->getAllSymbols();
+    QString requestedExchange = exchange;
 
-    if (!symbols.contains(symbol)) {
-        LOG_DEBUG(QString("Remote Control: GET /ticker/%1 - 404: Ticker not found").arg(symbol));
-        sendHttpResponse(socket, 404, "Not Found", QJsonObject(), "Ticker not found");
-        socket->disconnectFromHost();
-        return;
+    if (!requestedExchange.isEmpty()) {
+        // Exchange specified - check if this exact ticker exists
+        if (!m_tickerList->hasTickerKey(symbol, requestedExchange)) {
+            LOG_DEBUG(QString("Remote Control: GET /ticker/%1/%2 - 404: Ticker not found").arg(requestedExchange).arg(symbol));
+            sendHttpResponse(socket, 404, "Not Found", QJsonObject(), "Ticker not found");
+            socket->disconnectFromHost();
+            return;
+        }
+    } else {
+        // No exchange specified - find ticker with this symbol
+        QList<QPair<QString, QString>> tickers = m_tickerList->getAllTickersWithExchange();
+        bool found = false;
+
+        for (const auto& ticker : tickers) {
+            if (ticker.first == symbol) {
+                requestedExchange = ticker.second;
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            LOG_DEBUG(QString("Remote Control: GET /ticker/%1 - 404: Ticker not found").arg(symbol));
+            sendHttpResponse(socket, 404, "Not Found", QJsonObject(), "Ticker not found");
+            socket->disconnectFromHost();
+            return;
+        }
     }
 
-    QString exchange = m_tickerDataManager->getExchange(symbol);
     QJsonObject tickerObj;
     tickerObj["symbol"] = symbol;
-    tickerObj["exchange"] = exchange;
+    tickerObj["exchange"] = requestedExchange;
 
-    LOG_DEBUG(QString("Remote Control: GET /ticker/%1 - 200: OK").arg(symbol));
+    LOG_DEBUG(QString("Remote Control: GET /ticker/%1/%2 - 200: OK").arg(requestedExchange).arg(symbol));
     sendHttpResponse(socket, 200, "OK", tickerObj);
     socket->disconnectFromHost();
 }

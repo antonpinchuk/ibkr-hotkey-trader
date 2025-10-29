@@ -9,11 +9,15 @@
 #include <QPainter>
 
 class IBKRClient;
+class SymbolSearchManager;
 
 struct SymbolSearchResult {
     QString symbol;
     QString companyName;
     QString exchange;
+    int conId;
+
+    SymbolSearchResult() : conId(0) {}
 };
 
 // Custom delegate for search results
@@ -36,16 +40,16 @@ class SymbolSearchDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit SymbolSearchDialog(IBKRClient *client, QWidget *parent = nullptr);
+    explicit SymbolSearchDialog(SymbolSearchManager *searchManager, QWidget *parent = nullptr);
 
 signals:
-    void symbolSelected(const QString& symbol, const QString& exchange);
+    void symbolSelected(const QString& symbol, const QString& exchange, int conId = 0);
 
 private slots:
     void onSearchTextChanged(const QString& text);
     void onItemActivated(QListWidgetItem *item);
     void onSearchTimeout();
-    void onSymbolSearchResults(int reqId, const QList<QPair<QString, QPair<QString, QString>>>& results);
+    void onSymbolSearchResults(int reqId, const QList<QPair<QString, QPair<QString, QString>>>& results, const QMap<QString, int>& symbolToConId);
 
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
@@ -54,7 +58,7 @@ protected:
 private:
     void performSearch();
 
-    IBKRClient *m_client;
+    SymbolSearchManager *m_searchManager;
     QLineEdit *m_searchEdit;
     QListWidget *m_resultsWidget;
     QTimer *m_searchTimer;

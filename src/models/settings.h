@@ -48,6 +48,10 @@ public:
     bool showCancelledOrders() const { return m_showCancelledOrders; }
     void setShowCancelledOrders(bool show);
 
+    // Order type setting (LMT or MKT)
+    QString orderType() const { return m_orderType; }
+    void setOrderType(const QString& type);
+
     void load();
     void save();
 
@@ -69,6 +73,7 @@ private:
     int m_remoteControlPort;
     int m_displayGroupId;
     bool m_showCancelledOrders;
+    QString m_orderType;  // "LMT" or "MKT"
 
     void initDatabase();
     void initDefaults();

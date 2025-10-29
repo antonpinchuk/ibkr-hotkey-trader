@@ -126,6 +126,8 @@ set(SOURCES
     src/widgets/tickeritemdelegate.h
     src/widgets/orderhistorywidget.cpp
     src/widgets/orderhistorywidget.h
+    src/widgets/orderpanel.cpp
+    src/widgets/orderpanel.h
     # Client
     src/client/ibkrclient.cpp
     src/client/ibkrclient.h
@@ -145,6 +147,8 @@ set(SOURCES
     src/models/order.h
     src/models/tickerdatamanager.cpp
     src/models/tickerdatamanager.h
+    src/models/symbolsearchmanager.cpp
+    src/models/symbolsearchmanager.h
     # Utils
     src/utils/logger.cpp
     src/utils/logger.h

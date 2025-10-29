@@ -93,6 +93,7 @@ void Settings::initDefaults()
     m_remoteControlPort = 8496;
     m_displayGroupId = 0;  // 0 = disabled (No Group)
     m_showCancelledOrders = false;  // Hidden by default
+    m_orderType = "LMT";  // Default to limit orders
 }
 
 void Settings::setBudget(double budget)
@@ -150,6 +151,11 @@ void Settings::setShowCancelledOrders(bool show)
     m_showCancelledOrders = show;
 }
 
+void Settings::setOrderType(const QString& type)
+{
+    m_orderType = type;
+}
+
 QString Settings::getValue(const QString& key, const QString& defaultValue) const
 {
     QSqlQuery query(m_db);
@@ -193,6 +199,7 @@ void Settings::load()
     m_remoteControlPort = getValue("remote_control_port", "8496").toInt();
     m_displayGroupId = getValue("display_group_id", "0").toInt();
     m_showCancelledOrders = getValue("show_cancelled_orders", "0").toInt() == 1;
+    m_orderType = getValue("order_type", "LMT");
 }
 
 void Settings::save()
@@ -213,4 +220,5 @@ void Settings::save()
     setValue("remote_control_port", QString::number(m_remoteControlPort));
     setValue("display_group_id", QString::number(m_displayGroupId));
     setValue("show_cancelled_orders", m_showCancelledOrders ? "1" : "0");
+    setValue("order_type", m_orderType);
 }

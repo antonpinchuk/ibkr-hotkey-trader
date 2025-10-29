@@ -2,44 +2,38 @@
 
 A reactive hotkey trading application for **Interactive Brokers**, enabling rapid order execution and intraday trading via the TWS API with real-time market data (subscription required).
 
-![IBKR Hotkey Trader](doc/images/screenshot-mainwindow.png)
+![IBKR Hotkey Trader](doc/images/screenshot.png)
+Windows sync:
+1. TradingView
+2. Chrome browser extension
+3. IBKR Hotkey Trader app
+4. Global MacOS hotkeys 
+5. IBKR Trader Workstation (TWS) Dashboard
+
 
 ## Features
 
-- **Rapid Trading**: Execute buy/sell orders instantly using keyboard shortcuts (system-wide, works when app is not in focus)
-- **Limit Calculation**: Budget limit with automatic Qty calculation (from %) and limit based on live price update
-- **Multiple Tickers**: Switch between symbols; add/remove/reorder
-- **Portfolio/Orders**: Track open positions and today's orders in real-time
-- **Session Statistics**: Track daily P&L, win rate, and trade history
-- **Real-time Charts**: Candlestick chart (5s to 1H) with live price updates, auto-scaling, and horizontal zoom
-- **System Tray**: Current ticker (for visibility when app is not in focus), blinks on price feed loss
-- **Remote Control**: Add/remove/select tickers for TradingView browser plugin integration
-- **TWS Display Groups**: Automatic synchronization with TWS windows (Market Data, Level 2, News) via hotkeys 
+- **Rapid Trading**: Execute buy/sell orders instantly using keyboard shortcuts
+- **LMT/MKT**: Limit price calculation based on market tick-by-tick updates
+- **QTY**: Automatic rounded Qty calculation (%) based on your buying power
+- **TradingView** current symbol synchronization with Hotkey Trader and TWS
+
+Experimental features: portfolio, order history, live chart, statistics
 
 ## Requirements
 
 ### System Requirements
-- macOS 10.15+ / Windows 10+ / Linux
-- Qt 6.2 or later
-- CMake 3.16 or later
+- macOS 10.15+
+- Qt 6.2+
+- CMake 3.16+
 - Protocol Buffers (protobuf) compiler
 - Abseil C++ library
 - C++17 compatible compiler
 
-**Install dependencies (macOS):**
+**Install dependencies:**
 ```bash
 brew install cmake qt@6 protobuf abseil
 ```
-
-**Install dependencies (Ubuntu/Debian):**
-```bash
-sudo apt install cmake qt6-base-dev protobuf-compiler libprotobuf-dev libabsl-dev
-```
-
-**Install dependencies (Windows):**
-- Install CMake from https://cmake.org/download/
-- Install Qt6 from https://www.qt.io/download
-- Install vcpkg and run: `vcpkg install protobuf abseil`
 
 ### Interactive Brokers Setup
 1. **Market Data Subscription** (required for real-time data):
@@ -174,41 +168,63 @@ The application will attempt to connect to TWS automatically.
 1. **Start** Open TWS and log in to your account first, then launch this app
 2. **Search Symbol**: Press `Cmd+K` to search for a symbol (e.g., "AAPL", "TSLA")
     - Mind the stock name (some symbols can duplicate on different exchange's)
-6. **Switch Symbols**: Click another ticker in the left panel
+    - or use TradingView browser plugin
+3. **Switch Symbols**: Click another ticker in the left panel
     - Stops live updates for previous symbol and starts for current one
     - Right-click ticker for context menu: Move to Top / Delete
-3. **Enter Position**: Press `Shift+Ctrl+Opt+O` (100% of your budget) or `Shift+Ctrl+Opt+P` (50%) to open position
-   - Orders execute at limit (pre/post market) or market price (based on order settings)
-   - Multiple click updates pending order based on live price (if price went upper than ask+10)
+    - or switch symbol in TradingView
+    - use TWS group sync (see below)
+4. **Order Type**: Switch between Limit (LMT) and Market (MKT) orders
+    - Market orders available only during regular trading hours (9:30-16:00 EST)
+5. **Limit Prices**: values auto-update from live market data
+    - Buy price: Ask + offset (automatically updates from ticks)
+    - Sell price: Bid - offset (automatically updates from ticks)
+    - Manual override: Click field to enter custom price (stops auto-updates)
+6. **Enter Position**: Press `Shift+Ctrl+Opt+O` (100% of your budget) or `Shift+Ctrl+Opt+P` (50%) to open position
+   - Orders execute at limit set in price fields
+   - Multiple click updates pending order based on live price (useful if price rapidly went upper then ask+10)
    - Confirmation toast appears on success/error
-5. **Close Position**: Use `Ctrl+Opt+Z/X/C/V` to close position (full or partial)
-   - Qty is calculated based on remain position (not on budget)
-   - Multiple click updates pending order based on live price (if price went lower than bid-10)
-4. **Monitor Positions/Orders**: Track in real-time
+7. **Add to Position**: Press `Shift+Ctrl+Opt+1..0` (5-50% of your buying budget)
+   - Only works when you already have open position
+   - Does not allow to exceed buying budget
+   - Multiple click - appends X% to pending order
+8. **Close Position**: Use `Ctrl+Opt+Z/X/C/V` to close position (full or partial)
+   - Qty is calculated based on remain position (not on buying budget)
+   - Multiple click updates pending order based on live price (useful if price rapidly went lower than bid-10)
+9. **Monitor Positions/Orders**: Track in real-time
    - Select Current ticker or ALl
    - Show/Hide cancelled orders and zero-positions
-   - Statistics updated in real-time (win rate, realized P&L)
-2. **Monitor Chart**: View real-time candlestick chart
+   - Statistics updated in real-time: win rate, P&L (TODO)
+10. **Monitor Chart**: View real-time candlestick chart (experimental)
     - Price lines show current bid/ask/mid
-    - Select timeframe (5s to 1Y) from dropdown
+    - Select timeframe (5s to 1D) from dropdown
     - Use mousewheel to zoom horizontally
     - Drag chart to scroll through history
     - Toggle Auto-scale checkbox for automatic vertical scaling
     - Chart zoom and candel size state persisted
 
+**Note**: Chart only works during market session, post and pre-market.  
+
 To start over use `File → Reset Session` or restart the app.
+
+#### Safety Features
+- Cannot exceed 100% of buying budget (warning toast)
+- Budget validation against account balance
+- Blocked trading buttons if no tick-by-tick updates received
+- Automatic reconnection if TWS connection drops
+- Visual warnings for account balance issues
 
 #### TradingView Workflow
 1. Install and configure browser plugin
-2. Tickers will appear/switch automatically (based on plugin settings)
+2. Tickers will sync automatically (based on plugin wishlist settings)
 3. Current ticker is always visible in MacOS menu bar (mind blinking)
 4. Use hotkeys to trade
 
 (see [chrome-extension/README.md](chrome-extension/README.md))
 
-#### TWS Display Groups (UI Synchronization)
+#### TWS Display Groups (current symbol synchronization)
 
-**Display Groups** allow automatic synchronization of the active ticker between TradingView -> this app -> TWS windows (Market Data, Level 2, News, Charts).
+**Display Groups** allow automatic synchronization of the active ticker between TradingView -> Hotkey Trader app -> TWS windows (where you can have market data, level 2, news, charts etc).
 
 **Setup:**
 
@@ -227,19 +243,16 @@ To start over use `File → Reset Session` or restart the app.
 
 3. **Usage:**
    - When you switch tickers in this app → TWS windows automatically switch too
-   - When you switch tickers via TradingView plugin → TWS windows also switch
+   - When you switch tickers via TradingView plugin → app → TWS windows also switch
    - To disable: **TWS → No Group**
+
+**Note**: Synchronization only works during market session, post or pre-market.
 
 **Troubleshooting:**
 - Check debug logs: **TWS → Query Available Groups...** to check if groups are active
 - TWS Mosaic may have a default group assigned. Check and change if needed.
 - If no groups found: Make sure TWS windows have Display Groups enabled (step 1)
 
-### Safety Features
-- Cannot exceed 100% of budget (warning toast)
-- Budget validation against account balance
-- Automatic reconnection if TWS connection drops
-- Visual warnings for account balance issues
 
 ## User Interface
 
@@ -249,6 +262,7 @@ To start over use `File → Reset Session` or restart the app.
   - Click ticker to load chart (symbol switching locked when you have open position)
   - Live price updates with color-coded % change indicators
   - Right-click for context menu (Move to Top, Delete)
+- **Order Panel**: Order type and buy/sell limit price
 - **Center Panel**: Multi-timeframe candlestick chart
   - Timeframes: 5s, 10s, 30s, 1m, 5m, 15m, 30m, 1H
   - Auto-scale checkbox (vertical auto-scaling to visible candles)
@@ -292,7 +306,8 @@ ibkr-hotkey-trader/
 │   │
 │   ├── client/                           # TWS API Integration
 │   │   ├── ibkrclient.h/cpp              # TWS API client wrapper (connection, requests)
-│   │   └── ibkrwrapper.h/cpp             # TWS API callback handlers (market data, orders, positions)
+│   │   ├── ibkrwrapper.h/cpp             # TWS API callback handlers (market data, orders, positions)
+│   │   └── displaygroupmanager.h/cpp     # TWS Display Groups manager (UI synchronization)
 │   │
 │   ├── ui/                               # Main User Interface
 │   │   ├── mainwindow.h/cpp              # Main window UI (layout, panels, connections)
@@ -301,6 +316,7 @@ ibkr-hotkey-trader/
 │   ├── widgets/                          # UI Components
 │   │   ├── chartwidget.h/cpp             # Real-time candlestick chart (QCustomPlot, multi-timeframe, auto-scale)
 │   │   ├── orderhistorywidget.h/cpp      # Order history panel (trades, positions, P&L, statistics)
+│   │   ├── orderpanel.h/cpp              # Order panel (LMT/MKT type, limit prices, reset)
 │   │   ├── tickerlistwidget.h/cpp        # Ticker list panel (symbols, prices, % change)
 │   │   └── tickeritemdelegate.h/cpp      # Custom ticker item renderer (color coding, styling)
 │   │
@@ -316,10 +332,11 @@ ibkr-hotkey-trader/
 │   │   ├── order.h/cpp                   # Order data model (buy/sell orders, status, P&L)
 │   │   ├── settings.h/cpp                # Application settings (connection, budget, account)
 │   │   ├── uistate.h/cpp                 # UI state persistence (window geometry, splitters, chart zoom)
-│   │   └── tickerdatamanager.h/cpp       # Ticker data manager (candle caching, real-time bars, aggregation)
+│   │   ├── tickerdatamanager.h/cpp       # Ticker data manager (candle caching, real-time bars, aggregation)
+│   │   └── symbolsearchmanager.h/cpp     # Symbol search manager (TWS symbol search, exchange matching)
 │   │
-│   ├── server/                           # Servers
-│   │   └── remotecontrolserver.h/cpp     # Remoto control of our app via REAT API
+│   ├── server/                           # Remote Control Server
+│   │   └── remotecontrolserver.h/cpp     # REST API server (TradingView integration)
 │   │
 │   ├── utils/                            # Utilities
 │   │   ├── logger.h/cpp                  # Logging system (file logging with log levels)
@@ -347,22 +364,26 @@ ibkr-hotkey-trader/
 #### Client Layer (`src/client/`)
 - **ibkrclient**: Manages TWS connection, sends requests (market data, orders, historical data)
 - **ibkrwrapper**: Receives TWS callbacks, emits Qt signals for UI updates
+- **displaygroupmanager**: Manages TWS Display Groups for UI synchronization across windows
 
 #### UI Layer (`src/ui/`, `src/widgets/`, `src/dialogs/`)
 - **mainwindow**: Main application window, coordinates all panels and shortcuts
 - **chartwidget**: Real-time candlestick charts with:
-  - Multiple timeframes (5s, 10s, 30s, 1m, 5m, 15m, 30m, 1h, 1d, 1w, 1m)
+  - Multiple timeframes (5s, 10s, 30s, 1m, 5m, 15m, 30m, 1h)
   - Horizontal zoom/scroll (vertical auto-scales to visible candles)
   - Zoom state persistence per timeframe (saved to SQLite)
   - Price lines (bid/ask/mid) updated from tick data
   - Auto-scroll on new candles (when auto-scale enabled)
+- **orderpanel**: Order type (LMT/MKT) selector and limit price fields with auto-update and manual override
 - **orderhistorywidget**: Displays order history with filtering, sorting, statistics
-- **tickerlistwidget**: Shows active tickers with live price updates
-- **symbolsearchdialog**: Symbol search with autocomplete
+- **tickerlistwidget**: Shows active tickers with live price updates and symbol@exchange display
+- **symbolsearchdialog**: Symbol search with autocomplete and exchange selection
 
 #### Trading Layer (`src/trading/`)
 - **tradingmanager**: Handles all trading operations:
-  - Order placement (market orders at current price)
+  - Order placement (limit/market orders)
+  - Auto-pricing (ask+offset for buy, bid-offset for sell)
+  - Manual price override support
   - Position tracking and updates
   - Budget validation and risk controls
   - Order deduplication (prevents duplicate entries from multiple TWS callbacks)
@@ -372,14 +393,20 @@ ibkr-hotkey-trader/
   - Subscribes to TWS real-time 5s bars (`reqRealTimeBars`)
   - Subscribes to tick-by-tick data (`reqTickByTickData`)
   - Aggregates 5s bars into larger timeframes (10s, 30s, 1m, 5m, etc.)
-  - Caches candle data in memory for all symbols
+  - Caches candle data using symbol@exchange keys for multi-exchange support
   - Emits signals for chart updates (completed bars and dynamic candles)
+- **symbolsearchmanager**: Handles TWS symbol search with exchange matching
 - **order**: Order data structure with status tracking
 - **settings**: Application settings (persisted to SQLite)
 - **uistate**: UI state (window geometry, splitter positions, chart zoom)
 
+#### Server Layer (`src/server/`)
+- **remotecontrolserver**: REST API for remote ticker control (TradingView integration)
+
 #### Utils Layer (`src/utils/`)
 - **logger**: File-based logging with DEBUG/INFO/WARNING/ERROR levels
+- **globalhotkeymanager**: System-wide hotkey registration (macOS Carbon API)
+- **systemtraymanager**: macOS status bar integration with blink notifications
 
 ### Testing Remote Control API
 
@@ -433,14 +460,14 @@ curl -X DELETE http://127.0.0.1:8496/ticker \
   -H "Content-Type: application/json" \
   -d '{"symbol": "MSFT", "exchange": "NASDAQ"}'
 
-# Отримати всі тікери
+# Get all tickers
 curl http://127.0.0.1:8496/ticker
 
-# Отримати конкретний тікер
-curl http://127.0.0.1:8496/ticker/TSLA
+# Get specific ticker (by symbol@exchange)
+curl http://127.0.0.1:8496/ticker/NASDAQ/TSLA
 
-# Отримати неіснуючий тікер (поверне 404)
-curl http://127.0.0.1:8496/ticker/INVALID
+# Not found ticker (404)
+curl http://127.0.0.1:8496/ticker/INVALID/INVALID
 ```
 
 **Note:** The server listens on all network interfaces (0.0.0.0), so it can be accessed from other devices on the same network. Use your computer's IP address instead of 127.0.0.1 when accessing from another device.
@@ -560,10 +587,8 @@ cmake .. -DCMAKE_BUILD_TYPE=Debug
 make
 ```
 
-### Project Dependencies
+### System traces
 - **User data**: Settings stored in local SQLite database (OS-specific app data folder)
-
-**Note**: The TWS API is not distributed with this repository per Interactive Brokers' distribution policy. It's a one-time ~10MB download.
 
 ## License
 
@@ -571,9 +596,9 @@ MIT License - see [LICENSE](LICENSE) file for details
 
 ## Links
 
-- Website: https://kinect-pro.com/solutions/ibkr-hotkey-trader/
+- Website: https://kinect-pro.com/trading-software/
 - GitHub: https://github.com/kinect-pro/ibkr-hotkey-trader
-- Support: https://kinect-pro.com/contact/
+- Support: https://kinect.pro/
 
 ## Disclaimer
 
@@ -584,7 +609,6 @@ This software is for educational and personal use only. Trading involves substan
 ## Author
 
 Developed by **Kinect.PRO**
-Website: https://kinect-pro.com
 
 ---
 

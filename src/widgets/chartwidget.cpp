@@ -38,14 +38,14 @@ ChartWidget::ChartWidget(QWidget *parent)
     m_replotTimer->setInterval(100); // 100ms = 10 FPS
     connect(m_replotTimer, &QTimer::timeout, this, &ChartWidget::scheduledReplot);
 
-    // Controls at the top
-    setupControls();
-    mainLayout->addLayout(createControlsLayout());
-
-    // Chart below
+    // Chart at the top
     m_customPlot = new QCustomPlot(this);
     setupChart();
     mainLayout->addWidget(m_customPlot);
+
+    // Controls at the bottom
+    setupControls();
+    mainLayout->addLayout(createControlsLayout());
 }
 
 QHBoxLayout* ChartWidget::createControlsLayout()
@@ -178,9 +178,10 @@ void ChartWidget::setupControls()
     connect(m_autoScaleCheckBox, &QCheckBox::toggled, this, &ChartWidget::onAutoScaleChanged);
 }
 
-void ChartWidget::setSymbol(const QString& symbol)
+void ChartWidget::setSymbol(const QString& symbol, const QString& exchange)
 {
     m_currentSymbol = symbol;
+    m_currentTickerKey = makeTickerKey(symbol, exchange);
     clearChart();
 
     if (!m_currentSymbol.isEmpty()) {
@@ -266,7 +267,7 @@ void ChartWidget::updateChart()
         return;
     }
 
-    const QVector<CandleBar>* bars = m_dataManager->getBars(m_currentSymbol, m_currentTimeframe);
+    const QVector<CandleBar>* bars = m_dataManager->getBars(m_currentTickerKey, m_currentTimeframe);
     if (bars && !bars->isEmpty()) {
         plotCandles(*bars);
     }
@@ -330,7 +331,7 @@ void ChartWidget::updateCurrentBar(const CandleBar& bar)
         return;
     }
 
-    const QVector<CandleBar>* bars = m_dataManager->getBars(m_currentSymbol, m_currentTimeframe);
+    const QVector<CandleBar>* bars = m_dataManager->getBars(m_currentTickerKey, m_currentTimeframe);
     if (!bars || bars->isEmpty()) {
         return;
     }
@@ -427,7 +428,7 @@ void ChartWidget::onCandleSizeChanged(int index)
             m_dataManager->setCurrentTimeframe(newTimeframe);
 
             if (!m_currentSymbol.isEmpty()) {
-                m_dataManager->loadTimeframe(m_currentSymbol, newTimeframe);
+                m_dataManager->loadTimeframe(m_currentTickerKey, newTimeframe);
             }
         }
     }

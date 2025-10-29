@@ -1,5 +1,5 @@
 #include "dialogs/symbolsearchdialog.h"
-#include "client/ibkrclient.h"
+#include "models/symbolsearchmanager.h"
 #include <QVBoxLayout>
 #include <QKeyEvent>
 #include <QShowEvent>
@@ -63,9 +63,9 @@ QSize SearchResultDelegate::sizeHint(const QStyleOptionViewItem &option, const Q
 }
 
 // SymbolSearchDialog implementation
-SymbolSearchDialog::SymbolSearchDialog(IBKRClient *client, QWidget *parent)
+SymbolSearchDialog::SymbolSearchDialog(SymbolSearchManager *searchManager, QWidget *parent)
     : QDialog(parent)
-    , m_client(client)
+    , m_searchManager(searchManager)
     , m_currentReqId(1000)
     , m_pendingEnterReqId(-1)
     , m_pendingEnter(false)
@@ -100,7 +100,7 @@ SymbolSearchDialog::SymbolSearchDialog(IBKRClient *client, QWidget *parent)
             this, &SymbolSearchDialog::onItemActivated);
     connect(m_searchTimer, &QTimer::timeout,
             this, &SymbolSearchDialog::onSearchTimeout);
-    connect(m_client, &IBKRClient::symbolSearchResultsReceived,
+    connect(m_searchManager, &SymbolSearchManager::symbolSearchResults,
             this, &SymbolSearchDialog::onSymbolSearchResults);
 
     m_searchEdit->setFocus();
@@ -135,10 +135,11 @@ void SymbolSearchDialog::performSearch()
     if (searchText.isEmpty()) return;
 
     // Don't clear list - keep previous results while searching
-    m_client->searchSymbol(m_currentReqId++, searchText);
+    m_searchManager->searchSymbol(searchText);
+    m_currentReqId++;  // Increment for tracking
 }
 
-void SymbolSearchDialog::onSymbolSearchResults(int reqId, const QList<QPair<QString, QPair<QString, QString>>>& results)
+void SymbolSearchDialog::onSymbolSearchResults(int reqId, const QList<QPair<QString, QPair<QString, QString>>>& results, const QMap<QString, int>& symbolToConId)
 {
     // Check if this is an old result we don't care about anymore
     if (m_pendingEnter && reqId != m_pendingEnterReqId) {
@@ -163,6 +164,11 @@ void SymbolSearchDialog::onSymbolSearchResults(int reqId, const QList<QPair<QStr
         searchResult.symbol = result.first;
         searchResult.companyName = result.second.first;
         searchResult.exchange = result.second.second;
+
+        // Get conId from map
+        QString key = QString("%1@%2").arg(searchResult.symbol).arg(searchResult.exchange);
+        searchResult.conId = symbolToConId.value(key, 0);
+
         m_searchResults.append(searchResult);
 
         // Add item (delegate will handle formatting)
@@ -189,7 +195,7 @@ void SymbolSearchDialog::onItemActivated(QListWidgetItem *item)
 {
     int index = m_resultsWidget->row(item);
     if (index >= 0 && index < m_searchResults.size()) {
-        emit symbolSelected(m_searchResults[index].symbol, m_searchResults[index].exchange);
+        emit symbolSelected(m_searchResults[index].symbol, m_searchResults[index].exchange, m_searchResults[index].conId);
         accept();
     }
 }

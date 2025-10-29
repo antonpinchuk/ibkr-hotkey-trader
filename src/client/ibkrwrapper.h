@@ -214,7 +214,8 @@ signals:
     void contractDetailsReceived(int reqId, const QString& symbol, const QString& exchange, int conId);
     void contractSearchFinished(int reqId); // Emitted when contract details search is complete
     void symbolSearchResults(int reqId, const QStringList& symbols);
-    void symbolSamplesReceived(int reqId, const QList<QPair<QString, QPair<QString, QString>>>& results); // symbol, (company name, exchange)
+    // symbol, (company name, exchange, conId)
+    void symbolSamplesReceived(int reqId, const QList<QPair<QString, QPair<QString, QString>>>& results, const QMap<QString, int>& symbolToConId);
 
     void displayGroupListReceived(int reqId, const QString& groups);
     void displayGroupUpdatedReceived(int reqId, const QString& contractInfo);

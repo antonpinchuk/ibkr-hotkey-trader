@@ -15,7 +15,7 @@ class ChartWidget : public QWidget
 
 public:
     explicit ChartWidget(QWidget *parent = nullptr);
-    void setSymbol(const QString& symbol);
+    void setSymbol(const QString& symbol, const QString& exchange = QString());
     void setTimeframe(Timeframe timeframe);
     void setTickerDataManager(TickerDataManager* manager);
     void updateChart();
@@ -54,7 +54,8 @@ private:
     QComboBox *m_candleSizeCombo;
     QCheckBox *m_autoScaleCheckBox;
 
-    QString m_currentSymbol;
+    QString m_currentSymbol; // Pure symbol for display
+    QString m_currentTickerKey; // symbol@exchange for TickerDataManager calls
     Timeframe m_currentTimeframe;
     TickerDataManager* m_dataManager;
     bool m_autoScale;

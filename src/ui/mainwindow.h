@@ -14,6 +14,7 @@ class TradingManager;
 class TickerListWidget;
 class ChartWidget;
 class OrderHistoryWidget;
+class OrderPanel;
 class SettingsDialog;
 class SymbolSearchDialog;
 class ToastNotification;
@@ -23,6 +24,7 @@ class GlobalHotkeyManager;
 class SystemTrayManager;
 class RemoteControlServer;
 class DisplayGroupManager;
+class SymbolSearchManager;
 
 class MainWindow : public QMainWindow
 {
@@ -38,7 +40,7 @@ protected:
 
 private slots:
     void onSymbolSearchRequested();
-    void onSymbolSelected(const QString& symbol, const QString& exchange = QString());
+    void onSymbolSelected(const QString& symbol, const QString& exchange = QString(), int conId = 0);
     void onSymbolMoveToTop(const QString& symbol);
     void onSymbolDelete(const QString& symbol);
     void onSettingsClicked();
@@ -73,8 +75,9 @@ private slots:
     void onSplitterMoved();
 
     // Ticker activation
-    void onTickerActivated(const QString& symbol);
+    void onTickerActivated(const QString& symbol, const QString& exchange);
     void onPriceUpdated(const QString& symbol, double price, double changePercent, double bid, double ask, double mid);
+    void onTickByTickUpdated(int reqId, double price, double bidPrice, double askPrice);
 
 private:
     void setupUI();
@@ -143,6 +146,7 @@ private:
     TickerListWidget *m_tickerList;
     ChartWidget *m_chart;
     OrderHistoryWidget *m_orderHistory;
+    OrderPanel *m_orderPanel;
 
     // Dialogs
     SettingsDialog *m_settingsDialog;
@@ -152,6 +156,7 @@ private:
     IBKRClient *m_ibkrClient;
     TradingManager *m_tradingManager;
     TickerDataManager *m_tickerDataManager;
+    SymbolSearchManager *m_symbolSearchManager;
     GlobalHotkeyManager *m_globalHotkeyManager;
     SystemTrayManager *m_systemTrayManager;
     RemoteControlServer *m_remoteControlServer;

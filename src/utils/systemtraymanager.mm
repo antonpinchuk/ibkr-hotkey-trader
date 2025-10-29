@@ -17,8 +17,6 @@ SystemTrayManager::SystemTrayManager(QObject *parent)
     // Setup blink timer (1 second period = 0.5s on, 0.5s off)
     m_blinkTimer->setInterval(500);
     connect(m_blinkTimer, &QTimer::timeout, this, &SystemTrayManager::onBlinkTimer);
-
-    LOG_DEBUG("SystemTrayManager initialized");
 }
 
 SystemTrayManager::~SystemTrayManager()
@@ -74,8 +72,6 @@ void SystemTrayManager::createStatusItem()
                     }
                 }
             }
-
-            LOG_DEBUG("Status bar item created");
         } else {
             LOG_ERROR("Failed to create status bar item");
         }

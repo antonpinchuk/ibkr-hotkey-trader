@@ -5,6 +5,21 @@
 #include <QTimeZone>
 
 // Helper functions
+QString makeTickerKey(const QString& symbol, const QString& exchange) {
+    if (exchange.isEmpty()) {
+        return symbol;
+    }
+    return QString("%1@%2").arg(symbol).arg(exchange);
+}
+
+QPair<QString, QString> parseTickerKey(const QString& tickerKey) {
+    if (tickerKey.contains('@')) {
+        QStringList parts = tickerKey.split('@');
+        return qMakePair(parts[0], parts[1]);
+    }
+    return qMakePair(tickerKey, QString());
+}
+
 QString timeframeToString(Timeframe tf) {
     switch (tf) {
         case Timeframe::SEC_5:   return "5s";
@@ -89,44 +104,80 @@ TickerDataManager::~TickerDataManager()
     // When app is shutting down, TWS connection will be closed automatically
 }
 
+QString TickerDataManager::getExchange(const QString& symbol, const QString& exchange) const
+{
+    QString tickerKey = makeTickerKey(symbol, exchange);
+    return m_tickerKeyToExchange.value(tickerKey, exchange);
+}
+
+int TickerDataManager::getContractId(const QString& symbol, const QString& exchange) const
+{
+    QString tickerKey = makeTickerKey(symbol, exchange);
+    return m_tickerKeyToContractId.value(tickerKey, 0);
+}
+
 void TickerDataManager::activateTicker(const QString& symbol, const QString& exchange)
 {
-    // Store exchange if provided
+    // Create ticker key
+    QString tickerKey = makeTickerKey(symbol, exchange);
+
+    // Store exchange and conId if provided (both old and new maps for compatibility)
     if (!exchange.isEmpty()) {
         m_symbolToExchange[symbol] = exchange;
+        m_tickerKeyToExchange[tickerKey] = exchange;
     }
 
     // If already current, nothing to do
-    if (m_currentSymbol == symbol) {
+    if (m_currentSymbol == tickerKey) {
         return;
     }
 
     // Add ticker if new
-    bool isNewTicker = !m_tickerData.contains(symbol);
+    bool isNewTicker = !m_tickerData.contains(tickerKey);
     if (isNewTicker) {
-        m_tickerData[symbol] = TickerData{symbol};
+        int conId = m_symbolToContractId.value(symbol, 0);
+        if (conId == 0) {
+            conId = m_tickerKeyToContractId.value(tickerKey, 0);
+        }
+        m_tickerData[tickerKey] = TickerData{symbol, exchange, conId};
     }
-
-    // Activate ticker (will subscribe to tick-by-tick for immediate price updates)
 
     // Switch to this ticker (will subscribe to tick-by-tick only)
     // Historical data and real-time bars will be loaded after first tick
-    setCurrentSymbol(symbol);
+    setCurrentSymbol(tickerKey);
 
     // Emit signal so UI can update (chart will show cached data if available)
-    emit tickerActivated(symbol);
+    emit tickerActivated(symbol, exchange);
 }
 
-void TickerDataManager::removeTicker(const QString& symbol)
+void TickerDataManager::setExpectedExchange(const QString& symbol, const QString& exchange)
 {
-    if (m_tickerData.contains(symbol)) {
-        LOG_DEBUG(QString("Removing ticker %1 from cache").arg(symbol));
-        m_tickerData.remove(symbol);
+    if (!exchange.isEmpty()) {
+        m_symbolToExchange[symbol] = exchange;
+    }
+}
+
+void TickerDataManager::setContractId(const QString& symbol, const QString& exchange, int conId)
+{
+    if (conId > 0) {
+        QString tickerKey = makeTickerKey(symbol, exchange);
+        m_symbolToContractId[symbol] = conId;
+        m_tickerKeyToContractId[tickerKey] = conId;
+    }
+}
+
+void TickerDataManager::removeTicker(const QString& symbol, const QString& exchange)
+{
+    // Create ticker key
+    QString tickerKey = makeTickerKey(symbol, exchange);
+
+    if (m_tickerData.contains(tickerKey)) {
+        m_tickerData.remove(tickerKey);
 
         // Clean up request ID mappings
         QList<int> reqIdsToRemove;
         for (auto it = m_reqIdToSymbol.begin(); it != m_reqIdToSymbol.end(); ++it) {
-            if (it.value() == symbol) {
+            if (it.value() == tickerKey) {
                 reqIdsToRemove.append(it.key());
             }
         }
@@ -138,7 +189,7 @@ void TickerDataManager::removeTicker(const QString& symbol)
         // Clean up real-time bars mappings
         QList<int> rtReqIdsToRemove;
         for (auto it = m_realTimeBarsReqIdToSymbol.begin(); it != m_realTimeBarsReqIdToSymbol.end(); ++it) {
-            if (it.value() == symbol) {
+            if (it.value() == tickerKey) {
                 rtReqIdsToRemove.append(it.key());
             }
         }
@@ -149,25 +200,25 @@ void TickerDataManager::removeTicker(const QString& symbol)
     }
 }
 
-void TickerDataManager::loadTimeframe(const QString& symbol, Timeframe timeframe)
+void TickerDataManager::loadTimeframe(const QString& tickerKey, Timeframe timeframe)
 {
-    if (!m_tickerData.contains(symbol)) return;
+    if (!m_tickerData.contains(tickerKey)) return;
 
-    TickerData& data = m_tickerData[symbol];
+    TickerData& data = m_tickerData[tickerKey];
     if (data.isLoadedByTimeframe.value(timeframe, false)) {
-        emit tickerDataLoaded(symbol);
+        emit tickerDataLoaded(data.symbol);
         return;
     }
 
     int reqId = m_nextReqId++;
-    m_reqIdToSymbol[reqId] = symbol;
+    m_reqIdToSymbol[reqId] = tickerKey; // Store ticker key
     m_reqIdToTimeframe[reqId] = timeframe;
-    requestHistoricalBars(symbol, reqId, timeframe);
+    requestHistoricalBars(data.symbol, reqId, timeframe); // TWS API gets pure symbol
 }
 
-const QVector<CandleBar>* TickerDataManager::getBars(const QString& symbol, Timeframe timeframe) const
+const QVector<CandleBar>* TickerDataManager::getBars(const QString& tickerKey, Timeframe timeframe) const
 {
-    auto it = m_tickerData.constFind(symbol);
+    auto it = m_tickerData.constFind(tickerKey);
     if (it != m_tickerData.constEnd()) {
         auto barIt = it->barsByTimeframe.constFind(timeframe);
         if (barIt != it->barsByTimeframe.constEnd()) {
@@ -177,19 +228,22 @@ const QVector<CandleBar>* TickerDataManager::getBars(const QString& symbol, Time
     return nullptr;
 }
 
-bool TickerDataManager::isLoaded(const QString& symbol, Timeframe timeframe) const
+bool TickerDataManager::isLoaded(const QString& tickerKey, Timeframe timeframe) const
 {
-    auto it = m_tickerData.find(symbol);
+    auto it = m_tickerData.find(tickerKey);
     return (it != m_tickerData.end()) ? it->isLoadedByTimeframe.value(timeframe, false) : false;
 }
 
-void TickerDataManager::setCurrentSymbol(const QString& symbol)
+void TickerDataManager::setCurrentSymbol(const QString& tickerKey)
 {
-    if (m_currentSymbol != symbol) {
+    if (m_currentSymbol != tickerKey) {
         unsubscribeFromCurrentTicker();
-        m_currentSymbol = symbol;
+        m_currentSymbol = tickerKey;
         m_isAggregating = false; // Reset aggregation state to prevent mixing prices from different tickers
-        LOG_INFO(QString("Switched to symbol: %1").arg(symbol));
+
+        // Extract symbol from tickerKey for logging
+        QString symbol = m_tickerData.contains(tickerKey) ? m_tickerData[tickerKey].symbol : tickerKey;
+        LOG_INFO(QString("Switched to symbol: %1 (key: %2)").arg(symbol).arg(tickerKey));
 
         // Subscribe to tick-by-tick ONLY (for immediate price updates)
         // Historical data and real-time bars will be loaded after first tick
@@ -213,22 +267,29 @@ void TickerDataManager::subscribeToTickByTick()
 {
     if (m_currentSymbol.isEmpty() || !m_client || !m_client->isConnected()) return;
 
+    // Get pure symbol for TWS API (not symbol@exchange)
+    QString symbol = m_tickerData.contains(m_currentSymbol) ? m_tickerData[m_currentSymbol].symbol : m_currentSymbol;
+
     // Subscribe to tick-by-tick for price lines and current dynamic candle
     m_tickByTickReqId = m_nextReqId++;
-    LOG_DEBUG(QString("Subscribing to tick-by-tick data for %1 (reqId: %2)").arg(m_currentSymbol).arg(m_tickByTickReqId));
-    m_client->requestTickByTick(m_tickByTickReqId, m_currentSymbol);
+    m_reqIdToSymbol[m_tickByTickReqId] = m_currentSymbol; // Store ticker key
+    LOG_DEBUG(QString("Subscribing to tick-by-tick data for %1 (reqId: %2)").arg(symbol).arg(m_tickByTickReqId));
+    m_client->requestTickByTick(m_tickByTickReqId, symbol);
 }
 
 void TickerDataManager::subscribeToRealTimeBars()
 {
     if (m_currentSymbol.isEmpty() || !m_client || !m_client->isConnected()) return;
 
+    // Get pure symbol for TWS API (not symbol@exchange)
+    QString symbol = m_tickerData.contains(m_currentSymbol) ? m_tickerData[m_currentSymbol].symbol : m_currentSymbol;
+
     // Subscribe to real-time 5s bars (completed bars go to cache)
     m_realTimeBarsReqId = m_nextReqId++;
-    m_realTimeBarsReqIdToSymbol[m_realTimeBarsReqId] = m_currentSymbol; // Map reqId to symbol
+    m_realTimeBarsReqIdToSymbol[m_realTimeBarsReqId] = m_currentSymbol; // Map reqId to ticker key
     m_realTimeBarsLogged[m_realTimeBarsReqId] = false; // Reset logging for this reqId
-    LOG_DEBUG(QString("Subscribing to real-time bars for %1 (reqId: %2)").arg(m_currentSymbol).arg(m_realTimeBarsReqId));
-    m_client->requestRealTimeBars(m_realTimeBarsReqId, m_currentSymbol);
+    LOG_DEBUG(QString("Subscribing to real-time bars for %1 (reqId: %2)").arg(symbol).arg(m_realTimeBarsReqId));
+    m_client->requestRealTimeBars(m_realTimeBarsReqId, symbol);
 }
 
 void TickerDataManager::subscribeToCurrentTicker()
@@ -260,9 +321,9 @@ void TickerDataManager::unsubscribeFromCurrentTicker()
 void TickerDataManager::onHistoricalBarReceived(int reqId, long time, double open, double high, double low, double close, long volume)
 {
     if (!m_reqIdToSymbol.contains(reqId)) return;
-    QString symbol = m_reqIdToSymbol[reqId];
+    QString tickerKey = m_reqIdToSymbol[reqId]; // This is now ticker key (symbol@exchange)
     Timeframe timeframe = m_reqIdToTimeframe[reqId];
-    TickerData& data = m_tickerData[symbol];
+    TickerData& data = m_tickerData[tickerKey];
     QVector<CandleBar>& bars = data.barsByTimeframe[timeframe];
     if (bars.isEmpty() || bars.last().timestamp < time) {
         bars.append({time, open, high, low, close, volume});
@@ -273,20 +334,22 @@ void TickerDataManager::onHistoricalBarReceived(int reqId, long time, double ope
 void TickerDataManager::onHistoricalDataFinished(int reqId)
 {
     if (!m_reqIdToSymbol.contains(reqId)) return;
-    QString symbol = m_reqIdToSymbol[reqId];
+    QString tickerKey = m_reqIdToSymbol[reqId]; // This is now ticker key
     Timeframe timeframe = m_reqIdToTimeframe[reqId];
-    m_tickerData[symbol].isLoadedByTimeframe[timeframe] = true;
+    m_tickerData[tickerKey].isLoadedByTimeframe[timeframe] = true;
 
     // Count how many bars were loaded
     int barCount = 0;
-    if (m_tickerData.contains(symbol)) {
-        auto it = m_tickerData[symbol].barsByTimeframe.find(timeframe);
-        if (it != m_tickerData[symbol].barsByTimeframe.end()) {
+    if (m_tickerData.contains(tickerKey)) {
+        auto it = m_tickerData[tickerKey].barsByTimeframe.find(timeframe);
+        if (it != m_tickerData[tickerKey].barsByTimeframe.end()) {
             barCount = it.value().size();
         }
     }
 
-    LOG_DEBUG(QString("Historical data loaded for %1 [%2]: %3 bars").arg(symbol).arg(timeframeToString(timeframe)).arg(barCount));
+    // Get pure symbol for logging and signal emission
+    QString symbol = m_tickerData.contains(tickerKey) ? m_tickerData[tickerKey].symbol : tickerKey;
+    LOG_DEBUG(QString("Historical data loaded for %1 (key=%2) [%3]: %4 bars").arg(symbol).arg(tickerKey).arg(timeframeToString(timeframe)).arg(barCount));
     emit tickerDataLoaded(symbol);
     m_reqIdToSymbol.remove(reqId);
     m_reqIdToTimeframe.remove(reqId);
@@ -296,24 +359,24 @@ void TickerDataManager::onRealTimeBarReceived(int reqId, long time, double open,
 {
     // Log first bar for each reqId (for debugging)
     if (!m_realTimeBarsLogged.value(reqId, false)) {
-        QString mappedSymbol = m_realTimeBarsReqIdToSymbol.value(reqId, "NOT_FOUND");
-        LOG_DEBUG(QString("First real-time bar received: reqId=%1, mappedSymbol=%2, currentSymbol=%3, O=%4, H=%5, L=%6, C=%7, V=%8")
-            .arg(reqId).arg(mappedSymbol).arg(m_currentSymbol)
+        QString mappedTickerKey = m_realTimeBarsReqIdToSymbol.value(reqId, "NOT_FOUND");
+        LOG_DEBUG(QString("First real-time bar received: reqId=%1, mappedTickerKey=%2, currentSymbol=%3, O=%4, H=%5, L=%6, C=%7, V=%8")
+            .arg(reqId).arg(mappedTickerKey).arg(m_currentSymbol)
             .arg(open).arg(high).arg(low).arg(close).arg(volume));
         m_realTimeBarsLogged[reqId] = true;
     }
 
-    // Verify this bar belongs to a known symbol (prevent race condition on symbol switch)
+    // Verify this bar belongs to a known ticker (prevent race condition on ticker switch)
     if (!m_realTimeBarsReqIdToSymbol.contains(reqId)) {
-        LOG_DEBUG(QString("Ignoring real-time bar from unknown reqId %1 (symbol switched)").arg(reqId));
+        LOG_DEBUG(QString("Ignoring real-time bar from unknown reqId %1 (ticker switched)").arg(reqId));
         return;
     }
 
-    QString symbol = m_realTimeBarsReqIdToSymbol[reqId];
+    QString tickerKey = m_realTimeBarsReqIdToSymbol[reqId]; // This is now ticker key
 
-    // Only process bars from current symbol
-    if (symbol != m_currentSymbol) {
-        LOG_DEBUG(QString("Ignoring real-time bar for %1 (current symbol is %2)").arg(symbol).arg(m_currentSymbol));
+    // Only process bars from current ticker
+    if (tickerKey != m_currentSymbol) {
+        LOG_DEBUG(QString("Ignoring real-time bar for %1 (current ticker is %2)").arg(tickerKey).arg(m_currentSymbol));
         return;
     }
 
@@ -324,17 +387,19 @@ void TickerDataManager::onRealTimeBarReceived(int reqId, long time, double open,
     CandleBar bar{time, open, high, low, close, volume};
 
     // Add to 5s cache
-    TickerData& data = m_tickerData[symbol];
+    TickerData& data = m_tickerData[tickerKey];
     QVector<CandleBar>& s5_bars = data.barsByTimeframe[Timeframe::SEC_5];
     s5_bars.append(bar);
     data.lastBarTimestampByTimeframe[Timeframe::SEC_5] = time;
-    emit barsUpdated(symbol, Timeframe::SEC_5);
+
+    // Emit signal with pure symbol (not ticker key)
+    emit barsUpdated(data.symbol, Timeframe::SEC_5);
 
     // If viewing 5s, done
     if (m_currentTimeframe == Timeframe::SEC_5) return;
 
-    // Aggregate into larger timeframe (only for current symbol)
-    if (symbol != m_currentSymbol) return;
+    // Aggregate into larger timeframe (only for current ticker)
+    if (tickerKey != m_currentSymbol) return;
 
     int barSeconds = timeframeToSeconds(m_currentTimeframe);
     qint64 barTimestamp = (time / barSeconds) * barSeconds;
@@ -367,14 +432,17 @@ void TickerDataManager::onTickByTickUpdate(int reqId, double price, double bid, 
     double midPrice = (bid > 0 && ask > 0) ? (bid + ask) / 2.0 : price;
     if (midPrice <= 0) return;
 
-    // Check if this is the first tick for current symbol
+    // Get pure symbol for signal emission
+    QString symbol = m_tickerData.contains(m_currentSymbol) ? m_tickerData[m_currentSymbol].symbol : m_currentSymbol;
+
+    // Check if this is the first tick for current ticker
     // If so, start loading historical data and subscribe to real-time bars
     if (m_realTimeBarsReqId == -1) {
-        loadTimeframe(m_currentSymbol, m_currentTimeframe);
+        loadTimeframe(m_currentSymbol, m_currentTimeframe); // Pass ticker key
         subscribeToRealTimeBars();
 
         // Emit signal for first tick (used for Display Group sync, etc.)
-        emit firstTickReceived(m_currentSymbol);
+        emit firstTickReceived(symbol); // Emit pure symbol
     }
 
     qint64 currentTime = QDateTime::currentSecsSinceEpoch();
@@ -384,7 +452,7 @@ void TickerDataManager::onTickByTickUpdate(int reqId, double price, double bid, 
     m_lastPriceUpdateTime = currentTime;
     if (!m_hasPriceUpdateForCurrentBar) {
         m_hasPriceUpdateForCurrentBar = true;
-        emit priceUpdateReceived(m_currentSymbol);
+        emit priceUpdateReceived(symbol); // Emit pure symbol
     }
 
     // Only update dynamic candle if we already have at least one real-time bar
@@ -402,7 +470,7 @@ void TickerDataManager::onTickByTickUpdate(int reqId, double price, double bid, 
         m_currentDynamicBar.close = midPrice;
 
         // Emit for chart update (NOT added to cache!)
-        emit currentBarUpdated(m_currentSymbol, m_currentDynamicBar);
+        emit currentBarUpdated(symbol, m_currentDynamicBar); // Emit pure symbol
     }
 
     // Calculate price for ticker list (use last trade price, fallback to mid-price)
@@ -410,7 +478,7 @@ void TickerDataManager::onTickByTickUpdate(int reqId, double price, double bid, 
 
     // Calculate change percent from previous bar
     double changePercent = 0.0;
-    const QVector<CandleBar>* bars = getBars(m_currentSymbol, m_currentTimeframe);
+    const QVector<CandleBar>* bars = getBars(m_currentSymbol, m_currentTimeframe); // Pass ticker key
     if (bars && bars->size() >= 2) {
         // Compare with previous bar's close (1 bar ago for 10s = 10 seconds ago)
         double oldPrice = (*bars)[bars->size() - 2].close;
@@ -420,7 +488,7 @@ void TickerDataManager::onTickByTickUpdate(int reqId, double price, double bid, 
     }
 
     // Emit price update for ticker list and price lines (immediate!)
-    emit priceUpdated(m_currentSymbol, displayPrice, changePercent, bid, ask, midPrice);
+    emit priceUpdated(symbol, displayPrice, changePercent, bid, ask, midPrice); // Emit pure symbol
 }
 
 void TickerDataManager::onCandleBoundaryCheck()
@@ -430,11 +498,14 @@ void TickerDataManager::onCandleBoundaryCheck()
     qint64 currentTime = QDateTime::currentSecsSinceEpoch();
     qint64 currentBoundary = (currentTime / 5) * 5;
 
+    // Get pure symbol for signal emission
+    QString symbol = m_tickerData.contains(m_currentSymbol) ? m_tickerData[m_currentSymbol].symbol : m_currentSymbol;
+
     // If dynamic bar is from previous period, start new one
     if (m_currentDynamicBar.timestamp < currentBoundary) {
         // Check if previous bar had any price updates
         if (m_currentBarStartTime > 0 && !m_hasPriceUpdateForCurrentBar) {
-            emit noPriceUpdate(m_currentSymbol);
+            emit noPriceUpdate(symbol); // Emit pure symbol
         }
 
         // Start new bar with close of previous
@@ -442,18 +513,18 @@ void TickerDataManager::onCandleBoundaryCheck()
         m_currentDynamicBar = {currentBoundary, startPrice, startPrice, startPrice, startPrice, 0};
         m_currentBarStartTime = currentBoundary;
         m_hasPriceUpdateForCurrentBar = false; // Reset for new bar
-        emit currentBarUpdated(m_currentSymbol, m_currentDynamicBar);
+        emit currentBarUpdated(symbol, m_currentDynamicBar); // Emit pure symbol
     }
 }
 
 void TickerDataManager::finalizeAggregationBar()
 {
     if (!m_isAggregating) return;
-    TickerData& data = m_tickerData[m_currentSymbol];
+    TickerData& data = m_tickerData[m_currentSymbol]; // m_currentSymbol is now ticker key
     QVector<CandleBar>& bars = data.barsByTimeframe[m_currentTimeframe];
     bars.append(m_aggregationBar);
     data.lastBarTimestampByTimeframe[m_currentTimeframe] = m_aggregationBar.timestamp;
-    emit barsUpdated(m_currentSymbol, m_currentTimeframe);
+    emit barsUpdated(data.symbol, m_currentTimeframe); // Emit pure symbol
     m_isAggregating = false;
 }
 
@@ -503,16 +574,31 @@ void TickerDataManager::onContractDetailsReceived(int reqId, const QString& symb
     searchInfo.totalCount++;
 
     // Store contractId for Display Groups
-    // IMPORTANT: Only store if not already set, or if exchange matches our stored exchange
-    // This prioritizes the first match or exact exchange match
+    // IMPORTANT: Prioritize exact exchange match if we have expected exchange stored
     bool wasStored = false;
-    if (!m_symbolToContractId.contains(symbol)) {
-        // First contract for this symbol
+    if (m_symbolToExchange.contains(symbol)) {
+        // We have expected exchange - only store if it matches
+        QString expectedExchange = m_symbolToExchange[symbol];
+        if (expectedExchange == exchange) {
+            LOG_DEBUG(QString("Storing conId for %1: conId=%2, exchange=%3 (MATCHED expected: %4)")
+                      .arg(symbol).arg(conId).arg(exchange).arg(expectedExchange));
+            m_symbolToContractId[symbol] = conId;
+            // Also store in tickerKey map
+            QString tickerKey = makeTickerKey(symbol, exchange);
+            m_tickerKeyToContractId[tickerKey] = conId;
+            wasStored = true;
+        } else {
+            LOG_DEBUG(QString("Skipping conId for %1: conId=%2, exchange=%3 (expected: %4, NOT MATCHED)")
+                      .arg(symbol).arg(conId).arg(exchange).arg(expectedExchange));
+        }
+    } else if (!m_symbolToContractId.contains(symbol)) {
+        // No expected exchange - store first contract
+        LOG_DEBUG(QString("Storing conId for %1: conId=%2, exchange=%3 (no expected exchange, using first)")
+                  .arg(symbol).arg(conId).arg(exchange));
         m_symbolToContractId[symbol] = conId;
-        wasStored = true;
-    } else if (m_symbolToExchange.contains(symbol) && m_symbolToExchange[symbol] == exchange) {
-        // Exact exchange match - override with this one
-        m_symbolToContractId[symbol] = conId;
+        // Also store in tickerKey map
+        QString tickerKey = makeTickerKey(symbol, exchange);
+        m_tickerKeyToContractId[tickerKey] = conId;
         wasStored = true;
     }
 
@@ -521,9 +607,13 @@ void TickerDataManager::onContractDetailsReceived(int reqId, const QString& symb
         searchInfo.foundContracts.append(QString("%1@%2").arg(symbol).arg(exchange));
     }
 
-    // Also update exchange if not set
+    // Also update exchange if not set (both old and new maps)
     if (!m_symbolToExchange.contains(symbol)) {
         m_symbolToExchange[symbol] = exchange;
+    }
+    QString tickerKey = makeTickerKey(symbol, exchange);
+    if (!m_tickerKeyToExchange.contains(tickerKey)) {
+        m_tickerKeyToExchange[tickerKey] = exchange;
     }
 }
 
@@ -550,7 +640,6 @@ void TickerDataManager::onContractSearchFinished(int reqId)
 
 void TickerDataManager::onReconnected()
 {
-    LOG_DEBUG("Reconnected. Re-subscribing to data.");
     // Clear all logging trackers on reconnect
     m_realTimeBarsLogged.clear();
     subscribeToCurrentTicker();

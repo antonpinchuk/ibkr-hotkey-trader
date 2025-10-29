@@ -25,6 +25,14 @@ public:
     void closePosition(int percentage);
     void cancelAllOrders();
 
+    // Set target prices (from OrderPanel or auto-calculated from ticks)
+    void setTargetBuyPrice(double price);
+    void setTargetSellPrice(double price);
+
+    // Get target prices (for button state checks)
+    double targetBuyPrice() const { return m_targetBuyPrice; }
+    double targetSellPrice() const { return m_targetSellPrice; }
+
     double getCurrentPosition() const;
     double getPendingBuyQuantity() const;
     double getPendingSellQuantity() const;
@@ -34,6 +42,9 @@ public:
     double getPendingBuyPercentageOfBudget() const; // Returns % of budget that pending buy orders occupy
     bool canAddPercentage(int percentage) const; // Check if can add X% without exceeding 100% budget
     bool canClosePercentage(int percentage) const; // Check if floor(position * %) >= 1
+
+    // Trading hours check
+    bool isRegularTradingHours() const;
 
 signals:
     void orderPlaced(const TradeOrder& order);
@@ -54,7 +65,6 @@ private:
     double getBudget() const;
     int getAskOffset() const;
     int getBidOffset() const;
-    bool isRegularTradingHours() const;
 
     int placeOrder(const QString& action, int quantity, double price);
     void updatePendingOrder(int& pendingOrderId, const QString& action, int quantity, double price);
@@ -63,10 +73,14 @@ private:
     QString m_currentSymbol;
     QString m_currentExchange;
 
-    // Current market data
+    // Current market data (for chart and other purposes)
     double m_currentPrice;
     double m_bidPrice;
     double m_askPrice;
+
+    // Target prices for orders (auto-calculated or manually set from OrderPanel)
+    double m_targetBuyPrice;   // Ask + offset, or manual price
+    double m_targetSellPrice;  // Bid - offset, or manual price
 
     // Position tracking
     QMap<QString, double> m_positions;  // symbol -> quantity

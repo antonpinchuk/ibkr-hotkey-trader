@@ -17,8 +17,6 @@ GlobalHotkeyManager::~GlobalHotkeyManager()
 
 bool GlobalHotkeyManager::registerHotkeys()
 {
-    LOG_DEBUG("Registering global hotkeys");
-
     // Install event handler
     EventTypeSpec eventType;
     eventType.eventClass = kEventClassKeyboard;
@@ -126,9 +124,6 @@ bool GlobalHotkeyManager::registerHotkey(uint32_t modifiers, uint32_t keyCode, H
 
     m_hotkeys[hotkeyId.id] = info;
 
-    LOG_DEBUG(QString("Registered hotkey: id=%1, key=%2, modifiers=%3, action=%4")
-        .arg(hotkeyId.id).arg(keyCode).arg(modifiers).arg(static_cast<int>(action)));
-
     return true;
 }
 
@@ -159,7 +154,6 @@ OSStatus GlobalHotkeyManager::hotkeyHandler(EventHandlerCallRef nextHandler, Eve
     // Find and emit action
     if (manager->m_hotkeys.contains(hotkeyId.id)) {
         HotkeyAction action = manager->m_hotkeys[hotkeyId.id].action;
-        LOG_DEBUG(QString("Global hotkey pressed: id=%1, action=%2").arg(hotkeyId.id).arg(static_cast<int>(action)));
         emit manager->hotkeyPressed(action);
         return noErr;
     }

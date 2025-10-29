@@ -46,6 +46,33 @@
     - **Важливо:** НЕ використовувати додатковий QMutex - це створює deadlock!
 
 
+## Order Type and Price panel
+
+Order Panel Widget - Created above the chart with:
+- Order type dropdown (LMT/MKT) with persistence to SQLite
+- Buy and Sell price fields that auto-update from market ticks
+- Reset button to clear manual prices and re-enable auto-updates
+
+✓ Auto-pricing Logic - Target prices in TradingManager:
+- Buy price: Ask + offset (auto-updated from ticks)
+- Sell price: Bid - offset (auto-updated from ticks)
+- Manual prices override auto-updates (without adding offsets)
+
+✓ Manual Price Override:
+- Fields stop auto-updating when user focuses or edits them
+- Manual prices are used WITHOUT offsets when placing orders
+- Reset button properly clears both UI and TradingManager state
+
+✓ Market Order Restrictions:
+- MKT orders blocked outside regular trading hours (9:30-16:00 EST)
+- Visual feedback: MKT option disabled in dropdown when outside hours
+- Proper TIF handling: DAY during session, GTC outside session
+
+✓ Trading Button State Management:
+- Buttons disabled when target prices are invalid (0.0 for LMT orders)
+- Reset button clears prices and blocks trading buttons until valid prices came from ticks
+
+
 ## Candle Chart
 
 ### Architecture

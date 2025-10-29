@@ -5,6 +5,7 @@
 #include "widgets/tickerlistwidget.h"
 #include "widgets/chartwidget.h"
 #include "widgets/orderhistorywidget.h"
+#include "widgets/orderpanel.h"
 #include "dialogs/settingsdialog.h"
 #include "dialogs/symbolsearchdialog.h"
 #include "dialogs/debuglogdialog.h"
@@ -12,6 +13,7 @@
 #include "models/settings.h"
 #include "models/uistate.h"
 #include "models/tickerdatamanager.h"
+#include "models/symbolsearchmanager.h"
 #include "utils/logger.h"
 #include "utils/globalhotkeymanager.h"
 #include "utils/systemtraymanager.h"
@@ -53,8 +55,9 @@ MainWindow::MainWindow(QWidget *parent)
     m_ibkrClient = new IBKRClient(this);
     m_tradingManager = new TradingManager(m_ibkrClient, this);
     m_tickerDataManager = new TickerDataManager(m_ibkrClient, this);
+    m_symbolSearchManager = new SymbolSearchManager(m_ibkrClient, m_tickerDataManager, this);
     m_settingsDialog = new SettingsDialog(this);
-    m_symbolSearch = new SymbolSearchDialog(m_ibkrClient, this);
+    m_symbolSearch = new SymbolSearchDialog(m_symbolSearchManager, this);
     m_globalHotkeyManager = new GlobalHotkeyManager(this);
     m_systemTrayManager = new SystemTrayManager(this);
     m_remoteControlServer = nullptr; // Will be initialized after UI setup
@@ -77,11 +80,10 @@ MainWindow::MainWindow(QWidget *parent)
     m_displayGroupManager = new DisplayGroupManager(m_ibkrClient, this);
 
     // Initialize and start Remote Control Server
-    m_remoteControlServer = new RemoteControlServer(m_ibkrClient, m_tickerDataManager, m_tickerList, this);
+    m_remoteControlServer = new RemoteControlServer(m_ibkrClient, m_tickerDataManager, m_tickerList, m_symbolSearchManager, this);
     connect(m_remoteControlServer, &RemoteControlServer::tickerAddRequested, this, &MainWindow::onSymbolSelected);
-    connect(m_remoteControlServer, &RemoteControlServer::tickerSelectRequested, this, [this](const QString& symbol) {
-        QString exchange = m_tickerDataManager->getExchange(symbol);
-        onSymbolSelected(symbol, exchange);
+    connect(m_remoteControlServer, &RemoteControlServer::tickerSelectRequested, this, [this](const QString& symbol, const QString& exchange) {
+        onSymbolSelected(symbol, exchange, 0);
     });
     connect(m_remoteControlServer, &RemoteControlServer::tickerDeleteRequested, this, &MainWindow::onSymbolDelete);
 
@@ -446,10 +448,19 @@ void MainWindow::setupPanels()
     m_chart = new ChartWidget(this);
     m_chart->setTickerDataManager(m_tickerDataManager);
     m_orderHistory = new OrderHistoryWidget(this);
+    m_orderPanel = new OrderPanel(this);
 
-    // Bottom-right splitter: chart | order history (horizontal split)
+    // Create vertical container for order panel + chart
+    QWidget* chartContainer = new QWidget(this);
+    QVBoxLayout* chartLayout = new QVBoxLayout(chartContainer);
+    chartLayout->setContentsMargins(0, 0, 0, 0);
+    chartLayout->setSpacing(0);
+    chartLayout->addWidget(m_orderPanel);  // Order panel at top
+    chartLayout->addWidget(m_chart);        // Chart below
+
+    // Bottom-right splitter: (chart + order panel) | order history (horizontal split)
     m_rightBottomSplitter = new QSplitter(Qt::Horizontal, this);
-    m_rightBottomSplitter->addWidget(m_chart);
+    m_rightBottomSplitter->addWidget(chartContainer);
     m_rightBottomSplitter->addWidget(m_orderHistory);
     m_rightBottomSplitter->setStretchFactor(0, 2);  // Chart - wider
     m_rightBottomSplitter->setStretchFactor(1, 1);  // Orders - narrower
@@ -522,9 +533,7 @@ void MainWindow::setupConnections()
     connect(m_symbolSearch, &SymbolSearchDialog::symbolSelected, this, &MainWindow::onSymbolSelected);
 
     // Ticker list
-    connect(m_tickerList, &TickerListWidget::symbolSelected, this, [this](const QString& symbol) {
-        // Retrieve stored exchange from TickerDataManager
-        QString exchange = m_tickerDataManager->getExchange(symbol);
+    connect(m_tickerList, &TickerListWidget::symbolSelected, this, [this](const QString& symbol, const QString& exchange) {
         onSymbolSelected(symbol, exchange);
     });
     connect(m_tickerList, &TickerListWidget::tickerLabelClicked, this, &MainWindow::onSymbolSearchRequested);
@@ -539,6 +548,9 @@ void MainWindow::setupConnections()
     // TickerDataManager signals
     connect(m_tickerDataManager, &TickerDataManager::tickerActivated, this, &MainWindow::onTickerActivated);
     connect(m_tickerDataManager, &TickerDataManager::priceUpdated, this, &MainWindow::onPriceUpdated);
+
+    // IBKR Client tick-by-tick for order panel price updates
+    connect(m_ibkrClient, &IBKRClient::tickByTickUpdated, this, &MainWindow::onTickByTickUpdated);
 
     // Chart updates from TickerDataManager (dynamic candle and bars)
     connect(m_tickerDataManager, &TickerDataManager::currentBarUpdated, this, [this](const QString& symbol, const CandleBar& bar) {
@@ -560,6 +572,10 @@ void MainWindow::setupConnections()
     connect(m_tradingManager, &TradingManager::error, this, [this](const QString& message) {
         showToast(message, "error");
     });
+
+    // OrderPanel -> TradingManager (manual price updates)
+    connect(m_orderPanel, &OrderPanel::buyPriceChanged, m_tradingManager, &TradingManager::setTargetBuyPrice);
+    connect(m_orderPanel, &OrderPanel::sellPriceChanged, m_tradingManager, &TradingManager::setTargetSellPrice);
 
     // Global hotkey manager
     connect(m_globalHotkeyManager, &GlobalHotkeyManager::hotkeyPressed, this, [this](GlobalHotkeyManager::HotkeyAction action) {
@@ -633,8 +649,12 @@ void MainWindow::setupConnections()
     // Handle first tick received - sync Display Group for fast price updates
     connect(m_tickerDataManager, &TickerDataManager::firstTickReceived, this, [this](const QString& symbol) {
         // Synchronize TWS Display Group after first tick (when we have conId and fast price is priority)
-        QString exchange = m_tickerDataManager->getExchange(symbol);
-        int conId = m_tickerDataManager->getContractId(symbol);
+        // Parse current ticker key to get symbol and exchange
+        QString tickerKey = m_tickerDataManager->currentSymbol();
+        QPair<QString, QString> parsed = parseTickerKey(tickerKey);
+        QString parsedSymbol = parsed.first;
+        QString exchange = parsed.second;
+        int conId = m_tickerDataManager->getContractId(parsedSymbol, exchange);
         m_displayGroupManager->updateActiveSymbol(symbol, exchange, conId);
     });
 }
@@ -660,20 +680,36 @@ void MainWindow::onSymbolSearchRequested()
     m_symbolSearch->activateWindow();
 }
 
-void MainWindow::onSymbolSelected(const QString& symbol, const QString& exchange)
+void MainWindow::onSymbolSelected(const QString& symbol, const QString& exchange, int conId)
 {
+    // Store exchange mapping for later use
+    if (!exchange.isEmpty()) {
+        m_symbolToExchange[symbol] = exchange;
+    }
+
+    // Set conId if provided (from search dialog)
+    if (conId > 0) {
+        m_tickerDataManager->setContractId(symbol, exchange, conId);
+    }
+
     // TickerDataManager handles all the logic: adding ticker, loading data, and subscribing
     m_tickerDataManager->activateTicker(symbol, exchange);
 }
 
-void MainWindow::onTickerActivated(const QString& symbol)
+void MainWindow::onTickerActivated(const QString& symbol, const QString& exchange)
 {
     // Update all UI components when ticker is activated
     m_currentSymbol = symbol;
+
+    // Store exchange mapping
+    if (!exchange.isEmpty()) {
+        m_symbolToExchange[symbol] = exchange;
+    }
+
     m_tickerList->setTickerLabel(symbol);
-    m_tickerList->addSymbol(symbol);
-    m_tickerList->setCurrentSymbol(symbol);
-    m_chart->setSymbol(symbol);
+    m_tickerList->addSymbol(symbol, exchange);
+    m_tickerList->setCurrentSymbol(symbol, exchange);
+    m_chart->setSymbol(symbol, exchange);
     m_tradingManager->setSymbol(symbol);
     m_orderHistory->setCurrentSymbol(symbol);
     m_systemTrayManager->setTickerSymbol(symbol);
@@ -682,11 +718,18 @@ void MainWindow::onTickerActivated(const QString& symbol)
     // Reset price to 0 when switching tickers (buttons will be disabled until first price tick)
     m_orderHistory->resetPrice(symbol);
 
+    // Reset order panel price fields when switching tickers
+    m_orderPanel->resetPriceFields();
+
+    // Update market orders availability based on trading hours
+    bool isRegularHours = m_tradingManager->isRegularTradingHours();
+    m_orderPanel->setMarketOrdersEnabled(isRegularHours);
+
     // Update trading buttons state
     updateTradingButtonsState();
 
-    // Update TradingManager with exchange info
-    QString exchange = m_tickerDataManager->getExchange(symbol);
+    // Update TradingManager with exchange info (must be after setSymbol!)
+    // In normal flow exchange is always provided, but check for safety
     if (!exchange.isEmpty()) {
         m_tradingManager->setSymbolExchange(symbol, exchange);
     }
@@ -696,8 +739,11 @@ void MainWindow::onTickerActivated(const QString& symbol)
 
 void MainWindow::onPriceUpdated(const QString& symbol, double price, double changePercent, double bid, double ask, double mid)
 {
+    // Get exchange for this symbol from our mapping
+    QString exchange = m_symbolToExchange.value(symbol, QString());
+
     // Update ticker list with new price
-    m_tickerList->updateTickerPrice(symbol, price, changePercent);
+    m_tickerList->updateTickerPrice(symbol, exchange, price, changePercent);
 
     // Update order history with current price for PnL calculation
     m_orderHistory->updateCurrentPrice(symbol, price);
@@ -713,20 +759,54 @@ void MainWindow::onPriceUpdated(const QString& symbol, double price, double chan
     }
 }
 
+void MainWindow::onTickByTickUpdated(int reqId, double price, double bidPrice, double askPrice)
+{
+    Q_UNUSED(reqId);
+    Q_UNUSED(price);
+
+    // Only update order panel if it's in LMT mode
+    if (m_orderPanel->orderType() != "LMT") {
+        return;
+    }
+
+    // TradingManager updates m_targetBuyPrice/m_targetSellPrice automatically from ticks
+    // Get those calculated values and update OrderPanel display
+    // Note: OrderPanel will skip update if user has focus or manually edited
+    Settings& settings = Settings::instance();
+    int askOffset = settings.askOffset();
+    int bidOffset = settings.bidOffset();
+
+    double buyPrice = askPrice + (askOffset / 100.0);
+    double sellPrice = bidPrice - (bidOffset / 100.0);
+
+    m_orderPanel->setBuyPrice(buyPrice);
+    m_orderPanel->setSellPrice(sellPrice);
+}
+
 void MainWindow::onSymbolMoveToTop(const QString& symbol)
 {
-    m_tickerList->moveSymbolToTop(symbol);
+    QString exchange = m_symbolToExchange.value(symbol, QString());
+    m_tickerList->moveSymbolToTop(symbol, exchange);
 }
 
 void MainWindow::onSymbolDelete(const QString& symbol)
 {
-    LOG_DEBUG(QString("Deleting ticker %1").arg(symbol));
+    QString exchange = m_symbolToExchange.value(symbol, QString());
+    QString tickerKey = exchange.isEmpty() ? symbol : QString("%1@%2").arg(symbol).arg(exchange);
+    LOG_DEBUG(QString("User deleted ticker: %1").arg(tickerKey));
 
     // Remove from ticker data manager (will unsubscribe from all data feeds)
-    m_tickerDataManager->removeTicker(symbol);
+    m_tickerDataManager->removeTicker(symbol, exchange);
 
     // Remove from ticker list widget
-    m_tickerList->removeSymbol(symbol);
+    m_tickerList->removeSymbol(symbol, exchange);
+
+    // Only remove from mapping if no other tickers with this symbol exist
+    // (Important for tickers with same symbol but different exchanges)
+    QStringList allSymbols = m_tickerList->getAllSymbols();
+    if (!allSymbols.contains(symbol)) {
+        m_symbolToExchange.remove(symbol);
+    }
 
     // If this was the current symbol, switch to top ticker or reset to initial state
     if (m_currentSymbol == symbol) {
@@ -734,7 +814,7 @@ void MainWindow::onSymbolDelete(const QString& symbol)
 
         if (!topSymbol.isEmpty()) {
             // Switch to top ticker
-            QString exchange = m_tickerDataManager->getExchange(topSymbol);
+            QString exchange = m_symbolToExchange.value(topSymbol, QString());
             onSymbolSelected(topSymbol, exchange);
         } else {
             // No tickers left - reset to initial state
@@ -801,7 +881,7 @@ void MainWindow::onDebugLogs()
 
 void MainWindow::onConnected()
 {
-    LOG_INFO("Connected to TWS");
+    // Connection logged in IBKRClient
     showToast("Connected to TWS", "success");
     updateTradingButtonsState();
 }
@@ -951,8 +1031,11 @@ void MainWindow::onDisplayGroupSelected(int groupId)
 
     // If we have an active ticker, immediately sync to the new group
     if (!m_currentSymbol.isEmpty()) {
-        QString exchange = m_tickerDataManager->getExchange(m_currentSymbol);
-        int conId = m_tickerDataManager->getContractId(m_currentSymbol);
+        QString tickerKey = m_tickerDataManager->currentSymbol();
+        QPair<QString, QString> parsed = parseTickerKey(tickerKey);
+        QString symbol = parsed.first;
+        QString exchange = parsed.second;
+        int conId = m_tickerDataManager->getContractId(symbol, exchange);
         m_displayGroupManager->updateActiveSymbol(m_currentSymbol, exchange, conId);
     }
 }
@@ -985,6 +1068,9 @@ void MainWindow::updateTradingButtonsState()
 
     // If not connected or no symbol - disable all buttons and menu actions except Cancel
     if (!isConnected || !hasSymbol) {
+        // Disable order panel
+        m_orderPanel->setOrderPanelEnabled(false);
+
         // Buttons
         m_btnOpen100->setEnabled(false);
         m_btnOpen50->setEnabled(false);
@@ -1025,10 +1111,15 @@ void MainWindow::updateTradingButtonsState()
         return;
     }
 
+    // Enable order panel when connected and have symbol
+    m_orderPanel->setOrderPanelEnabled(true);
+
     // Get current data
     double price = m_orderHistory->getCurrentPrice(m_currentSymbol);
     double balance = m_orderHistory->getBalance();
     double position = m_tradingManager->getCurrentPosition();
+    double targetBuyPrice = m_tradingManager->targetBuyPrice();
+    double targetSellPrice = m_tradingManager->targetSellPrice();
 
     // Basic requirements
     bool hasPrice = (price > 0.0);
@@ -1036,26 +1127,30 @@ void MainWindow::updateTradingButtonsState()
     bool hasPosition = (position > 0.0);
     bool hasNoPosition = (position == 0.0);
 
-    // Open buttons: enabled ONLY if NO position AND has price AND balance
+    // Check if target prices are set (for LMT orders) or if using MKT
+    QString orderType = Settings::instance().orderType();
+    bool hasValidPrices = (orderType == "MKT") || (targetBuyPrice > 0.0 && targetSellPrice > 0.0);
+
+    // Open buttons: enabled ONLY if NO position AND has price AND balance AND valid target prices
     // (From REQUIREMENTS: "Спрацює тільки якщо немає відкритих позицій")
-    bool canOpen = hasNoPosition && hasPrice && hasBalance;
+    bool canOpen = hasNoPosition && hasPrice && hasBalance && hasValidPrices;
     m_btnOpen100->setEnabled(canOpen);
     m_btnOpen50->setEnabled(canOpen);
     m_open100Action->setEnabled(canOpen);
     m_open50Action->setEnabled(canOpen);
 
-    // Add buttons: enabled if HAS position AND price AND balance AND doesn't exceed 100% budget
+    // Add buttons: enabled if HAS position AND price AND balance AND valid target prices AND doesn't exceed 100% budget
     // (From REQUIREMENTS: "Спрацює тільки коли вже є відкриті позиції" + check budget limit)
-    bool canAdd5 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(5);
-    bool canAdd10 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(10);
-    bool canAdd15 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(15);
-    bool canAdd20 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(20);
-    bool canAdd25 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(25);
-    bool canAdd30 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(30);
-    bool canAdd35 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(35);
-    bool canAdd40 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(40);
-    bool canAdd45 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(45);
-    bool canAdd50 = hasPosition && hasPrice && hasBalance && m_tradingManager->canAddPercentage(50);
+    bool canAdd5 = hasPosition && hasPrice && hasBalance && hasValidPrices && m_tradingManager->canAddPercentage(5);
+    bool canAdd10 = hasPosition && hasPrice && hasBalance && hasValidPrices && m_tradingManager->canAddPercentage(10);
+    bool canAdd15 = hasPosition && hasPrice && hasBalance && hasValidPrices && m_tradingManager->canAddPercentage(15);
+    bool canAdd20 = hasPosition && hasPrice && hasBalance && hasValidPrices && m_tradingManager->canAddPercentage(20);
+    bool canAdd25 = hasPosition && hasPrice && hasBalance && hasValidPrices && m_tradingManager->canAddPercentage(25);
+    bool canAdd30 = hasPosition && hasPrice && hasBalance && hasValidPrices && m_tradingManager->canAddPercentage(30);
+    bool canAdd35 = hasPosition && hasPrice && hasBalance && hasValidPrices && m_tradingManager->canAddPercentage(35);
+    bool canAdd40 = hasPosition && hasPrice && hasBalance && hasValidPrices && m_tradingManager->canAddPercentage(40);
+    bool canAdd45 = hasPosition && hasPrice && hasBalance && hasValidPrices && m_tradingManager->canAddPercentage(45);
+    bool canAdd50 = hasPosition && hasPrice && hasBalance && hasValidPrices && m_tradingManager->canAddPercentage(50);
 
     m_btnAdd5->setEnabled(canAdd5);
     m_btnAdd10->setEnabled(canAdd10);
@@ -1078,12 +1173,12 @@ void MainWindow::updateTradingButtonsState()
     m_add45Action->setEnabled(canAdd45);
     m_add50Action->setEnabled(canAdd50);
 
-    // Close buttons: enabled if has position AND floor(position * %) >= 1
+    // Close buttons: enabled if has position AND valid target prices AND floor(position * %) >= 1
     // (From REQUIREMENTS: "Ті кнопки неактивні що створять округлену заявку менше однієї акції")
-    bool canClose25 = hasPosition && m_tradingManager->canClosePercentage(25);
-    bool canClose50 = hasPosition && m_tradingManager->canClosePercentage(50);
-    bool canClose75 = hasPosition && m_tradingManager->canClosePercentage(75);
-    bool canClose100 = hasPosition && m_tradingManager->canClosePercentage(100);
+    bool canClose25 = hasPosition && hasValidPrices && m_tradingManager->canClosePercentage(25);
+    bool canClose50 = hasPosition && hasValidPrices && m_tradingManager->canClosePercentage(50);
+    bool canClose75 = hasPosition && hasValidPrices && m_tradingManager->canClosePercentage(75);
+    bool canClose100 = hasPosition && hasValidPrices && m_tradingManager->canClosePercentage(100);
 
     m_btnClose25->setEnabled(canClose25);
     m_btnClose50->setEnabled(canClose50);

@@ -36,13 +36,20 @@ TickerListWidget::TickerListWidget(QWidget *parent)
     m_listWidget->viewport()->installEventFilter(this);
 }
 
-void TickerListWidget::addSymbol(const QString& symbol)
+void TickerListWidget::addSymbol(const QString& symbol, const QString& exchange)
 {
-    // Check if symbol already exists
+    // Create unique key: symbol@exchange
+    QString tickerKey = exchange.isEmpty() ? symbol : QString("%1@%2").arg(symbol).arg(exchange);
+
+    // Check if this symbol@exchange combination already exists
     for (int i = 0; i < m_listWidget->count(); ++i) {
         QListWidgetItem *item = m_listWidget->item(i);
-        if (item->data(TickerItemDelegate::SymbolRole).toString() == symbol) {
-            // Symbol already in list, don't add again
+        QString itemSymbol = item->data(TickerItemDelegate::SymbolRole).toString();
+        QString itemExchange = item->data(TickerItemDelegate::ExchangeRole).toString();
+        QString itemKey = itemExchange.isEmpty() ? itemSymbol : QString("%1@%2").arg(itemSymbol).arg(itemExchange);
+
+        if (itemKey == tickerKey) {
+            // Already in list, nothing to do
             return;
         }
     }
@@ -50,27 +57,37 @@ void TickerListWidget::addSymbol(const QString& symbol)
     // Create new item
     QListWidgetItem *item = new QListWidgetItem();
     item->setData(TickerItemDelegate::SymbolRole, symbol);
+    item->setData(TickerItemDelegate::ExchangeRole, exchange);
     item->setData(TickerItemDelegate::PriceRole, 0.0);
     item->setData(TickerItemDelegate::ChangePercentRole, 0.0);
     item->setData(TickerItemDelegate::IsCurrentRole, false);
     m_listWidget->insertItem(0, item);
 }
 
-void TickerListWidget::removeSymbol(const QString& symbol)
+void TickerListWidget::removeSymbol(const QString& symbol, const QString& exchange)
 {
-    // Find and remove item with this symbol
+    // Create unique key
+    QString tickerKey = exchange.isEmpty() ? symbol : QString("%1@%2").arg(symbol).arg(exchange);
+
+    // Find and remove item with this symbol@exchange
     for (int i = 0; i < m_listWidget->count(); ++i) {
         QListWidgetItem *item = m_listWidget->item(i);
-        if (item->data(TickerItemDelegate::SymbolRole).toString() == symbol) {
+        QString itemSymbol = item->data(TickerItemDelegate::SymbolRole).toString();
+        QString itemExchange = item->data(TickerItemDelegate::ExchangeRole).toString();
+        QString itemKey = itemExchange.isEmpty() ? itemSymbol : QString("%1@%2").arg(itemSymbol).arg(itemExchange);
+
+        if (itemKey == tickerKey) {
             delete m_listWidget->takeItem(i);
             break;
         }
     }
 }
 
-void TickerListWidget::setCurrentSymbol(const QString& symbol)
+void TickerListWidget::setCurrentSymbol(const QString& symbol, const QString& exchange)
 {
-    m_currentSymbol = symbol;
+    // Create unique key
+    QString tickerKey = exchange.isEmpty() ? symbol : QString("%1@%2").arg(symbol).arg(exchange);
+    m_currentSymbol = tickerKey;
 
     // Block signals to prevent recursion when programmatically setting current item
     m_listWidget->blockSignals(true);
@@ -79,7 +96,10 @@ void TickerListWidget::setCurrentSymbol(const QString& symbol)
     for (int i = 0; i < m_listWidget->count(); ++i) {
         QListWidgetItem *item = m_listWidget->item(i);
         QString itemSymbol = item->data(TickerItemDelegate::SymbolRole).toString();
-        bool isCurrent = (itemSymbol == m_currentSymbol);
+        QString itemExchange = item->data(TickerItemDelegate::ExchangeRole).toString();
+        QString itemKey = itemExchange.isEmpty() ? itemSymbol : QString("%1@%2").arg(itemSymbol).arg(itemExchange);
+
+        bool isCurrent = (itemKey == m_currentSymbol);
         item->setData(TickerItemDelegate::IsCurrentRole, isCurrent);
 
         // Select the current symbol in the list
@@ -99,12 +119,19 @@ void TickerListWidget::setTickerLabel(const QString& symbol)
     m_tickerLabel->setText(symbol);
 }
 
-void TickerListWidget::updateTickerPrice(const QString& symbol, double price, double changePercent)
+void TickerListWidget::updateTickerPrice(const QString& symbol, const QString& exchange, double price, double changePercent)
 {
-    // Find the item with this symbol and update its price and change percent
+    // Create unique key
+    QString tickerKey = exchange.isEmpty() ? symbol : QString("%1@%2").arg(symbol).arg(exchange);
+
+    // Find the item with this symbol@exchange and update its price and change percent
     for (int i = 0; i < m_listWidget->count(); ++i) {
         QListWidgetItem *item = m_listWidget->item(i);
-        if (item->data(TickerItemDelegate::SymbolRole).toString() == symbol) {
+        QString itemSymbol = item->data(TickerItemDelegate::SymbolRole).toString();
+        QString itemExchange = item->data(TickerItemDelegate::ExchangeRole).toString();
+        QString itemKey = itemExchange.isEmpty() ? itemSymbol : QString("%1@%2").arg(itemSymbol).arg(itemExchange);
+
+        if (itemKey == tickerKey) {
             item->setData(TickerItemDelegate::PriceRole, price);
             item->setData(TickerItemDelegate::ChangePercentRole, changePercent);
             // Trigger repaint
@@ -119,15 +146,22 @@ void TickerListWidget::clear()
     m_listWidget->clear();
 }
 
-void TickerListWidget::moveSymbolToTop(const QString& symbol)
+void TickerListWidget::moveSymbolToTop(const QString& symbol, const QString& exchange)
 {
-    // Find the item with this symbol
+    // Create unique key
+    QString tickerKey = exchange.isEmpty() ? symbol : QString("%1@%2").arg(symbol).arg(exchange);
+
+    // Find the item with this symbol@exchange
     for (int i = 0; i < m_listWidget->count(); ++i) {
         QListWidgetItem *item = m_listWidget->item(i);
-        if (item->data(TickerItemDelegate::SymbolRole).toString() == symbol) {
+        QString itemSymbol = item->data(TickerItemDelegate::SymbolRole).toString();
+        QString itemExchange = item->data(TickerItemDelegate::ExchangeRole).toString();
+        QString itemKey = itemExchange.isEmpty() ? itemSymbol : QString("%1@%2").arg(itemSymbol).arg(itemExchange);
+
+        if (itemKey == tickerKey) {
             // Only move if not already at top
             if (i > 0) {
-                bool wasCurrent = (symbol == m_currentSymbol);
+                bool wasCurrent = (tickerKey == m_currentSymbol);
 
                 m_listWidget->blockSignals(true);
                 m_listWidget->takeItem(i);
@@ -163,6 +197,35 @@ QStringList TickerListWidget::getAllSymbols() const
         symbols.append(item->data(TickerItemDelegate::SymbolRole).toString());
     }
     return symbols;
+}
+
+QList<QPair<QString, QString>> TickerListWidget::getAllTickersWithExchange() const
+{
+    QList<QPair<QString, QString>> tickers;
+    for (int i = 0; i < m_listWidget->count(); ++i) {
+        QListWidgetItem *item = m_listWidget->item(i);
+        QString symbol = item->data(TickerItemDelegate::SymbolRole).toString();
+        QString exchange = item->data(TickerItemDelegate::ExchangeRole).toString();
+        tickers.append(qMakePair(symbol, exchange));
+    }
+    return tickers;
+}
+
+bool TickerListWidget::hasTickerKey(const QString& symbol, const QString& exchange) const
+{
+    QString tickerKey = exchange.isEmpty() ? symbol : QString("%1@%2").arg(symbol).arg(exchange);
+
+    for (int i = 0; i < m_listWidget->count(); ++i) {
+        QListWidgetItem *item = m_listWidget->item(i);
+        QString itemSymbol = item->data(TickerItemDelegate::SymbolRole).toString();
+        QString itemExchange = item->data(TickerItemDelegate::ExchangeRole).toString();
+        QString itemKey = itemExchange.isEmpty() ? itemSymbol : QString("%1@%2").arg(itemSymbol).arg(itemExchange);
+
+        if (itemKey == tickerKey) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool TickerListWidget::eventFilter(QObject *obj, QEvent *event)
@@ -208,6 +271,7 @@ void TickerListWidget::onCurrentItemChanged(QListWidgetItem *current, QListWidge
     Q_UNUSED(previous);
     if (current) {
         QString symbol = current->data(TickerItemDelegate::SymbolRole).toString();
-        emit symbolSelected(symbol);
+        QString exchange = current->data(TickerItemDelegate::ExchangeRole).toString();
+        emit symbolSelected(symbol, exchange);
     }
 }

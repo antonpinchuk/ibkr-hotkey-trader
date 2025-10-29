@@ -27,6 +27,8 @@ Q_DECLARE_METATYPE(Timeframe)
 QString timeframeToString(Timeframe tf);
 QString timeframeToBarSize(Timeframe tf);
 int timeframeToSeconds(Timeframe tf);
+QString makeTickerKey(const QString& symbol, const QString& exchange);
+QPair<QString, QString> parseTickerKey(const QString& tickerKey); // Returns (symbol, exchange)
 
 struct CandleBar {
     qint64 timestamp;
@@ -38,9 +40,15 @@ struct CandleBar {
 
 struct TickerData {
     QString symbol;
+    QString exchange;
+    int conId;
     QMap<Timeframe, QVector<CandleBar>> barsByTimeframe;
     QMap<Timeframe, bool> isLoadedByTimeframe;
     QMap<Timeframe, qint64> lastBarTimestampByTimeframe;
+
+    TickerData() : conId(0) {}
+    TickerData(const QString& sym, const QString& exch = QString(), int contractId = 0)
+        : symbol(sym), exchange(exch), conId(contractId) {}
 };
 
 class TickerDataManager : public QObject
@@ -52,20 +60,24 @@ public:
     ~TickerDataManager();
 
     void activateTicker(const QString& symbol, const QString& exchange = QString());
-    void removeTicker(const QString& symbol);
-    void loadTimeframe(const QString& symbol, Timeframe timeframe);
-    const QVector<CandleBar>* getBars(const QString& symbol, Timeframe timeframe) const;
-    bool isLoaded(const QString& symbol, Timeframe timeframe) const;
-    void setCurrentSymbol(const QString& symbol);
+    void removeTicker(const QString& symbol, const QString& exchange = QString());
+    void loadTimeframe(const QString& tickerKey, Timeframe timeframe);
+    const QVector<CandleBar>* getBars(const QString& tickerKey, Timeframe timeframe) const;
+    bool isLoaded(const QString& tickerKey, Timeframe timeframe) const;
+    void setCurrentSymbol(const QString& tickerKey);
     void setCurrentTimeframe(Timeframe timeframe);
     Timeframe currentTimeframe() const { return m_currentTimeframe; }
     QString currentSymbol() const { return m_currentSymbol; }
-    QString getExchange(const QString& symbol) const { return m_symbolToExchange.value(symbol, QString()); }
-    int getContractId(const QString& symbol) const { return m_symbolToContractId.value(symbol, 0); }
+    QString getExchange(const QString& symbol, const QString& exchange) const;
+    int getContractId(const QString& symbol, const QString& exchange) const;
+
+    // Set expected exchange and conId before activating ticker (for Remote Control API)
+    void setExpectedExchange(const QString& symbol, const QString& exchange);
+    void setContractId(const QString& symbol, const QString& exchange, int conId);
 
 signals:
     void tickerDataLoaded(const QString& symbol);
-    void tickerActivated(const QString& symbol); // Emitted when ticker is ready (UI should update)
+    void tickerActivated(const QString& symbol, const QString& exchange); // Emitted when ticker is ready (UI should update)
     void priceUpdated(const QString& symbol, double price, double changePercent, double bid, double ask, double mid); // For ticker list and price lines
     void barsUpdated(const QString& symbol, Timeframe timeframe);
     void currentBarUpdated(const QString& symbol, const CandleBar& bar); // For live tick updates (not in cache)
@@ -93,10 +105,12 @@ private:
     void finalizeAggregationBar();
 
     IBKRClient* m_client;
-    QMap<QString, TickerData> m_tickerData;
-    QMap<QString, QString> m_symbolToExchange; // symbol -> exchange
-    QMap<QString, int> m_symbolToContractId; // symbol -> contractId (from TWS)
-    QMap<int, QString> m_reqIdToSymbol;
+    QMap<QString, TickerData> m_tickerData; // key: tickerKey (symbol@exchange)
+    QMap<QString, QString> m_symbolToExchange; // symbol -> exchange (DEPRECATED: use m_tickerKeyToExchange)
+    QMap<QString, int> m_symbolToContractId; // symbol -> conId (DEPRECATED: use m_tickerKeyToContractId)
+    QMap<QString, QString> m_tickerKeyToExchange; // tickerKey -> exchange
+    QMap<QString, int> m_tickerKeyToContractId; // tickerKey -> conId
+    QMap<int, QString> m_reqIdToSymbol; // reqId -> symbol
     QMap<int, Timeframe> m_reqIdToTimeframe;
     int m_nextReqId;
 

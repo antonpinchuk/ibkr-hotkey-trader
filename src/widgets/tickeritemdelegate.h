@@ -16,9 +16,10 @@ public:
     // Custom roles for storing ticker data
     enum TickerRoles {
         SymbolRole = Qt::UserRole + 1,
-        PriceRole = Qt::UserRole + 2,
-        ChangePercentRole = Qt::UserRole + 3,
-        IsCurrentRole = Qt::UserRole + 4
+        ExchangeRole = Qt::UserRole + 2,
+        PriceRole = Qt::UserRole + 3,
+        ChangePercentRole = Qt::UserRole + 4,
+        IsCurrentRole = Qt::UserRole + 5
     };
 };
 

@@ -91,7 +91,7 @@ signals:
     void accountsReceived(const QString& accounts);
     void symbolFound(int reqId, const QString& symbol, const QString& exchange, int conId);
     void symbolSearchFinished(int reqId); // Emitted when contract search is complete
-    void symbolSearchResultsReceived(int reqId, const QList<QPair<QString, QPair<QString, QString>>>& results);
+    void symbolSearchResultsReceived(int reqId, const QList<QPair<QString, QPair<QString, QString>>>& results, const QMap<QString, int>& symbolToConId);
     void activeAccountChanged(const QString& account);
 
     void displayGroupListReceived(int reqId, const QString& groups);
