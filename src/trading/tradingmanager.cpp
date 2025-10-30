@@ -357,21 +357,34 @@ void TradingManager::onError(int id, int code, const QString& message)
 {
     // Handle order-related errors (id corresponds to orderId)
     if (id > 0 && m_orders.contains(id)) {
-        LOG_ERROR(QString("Order %1 failed with error %2: %3").arg(id).arg(code).arg(message));
+        // TWS Error codes that are warnings (order is NOT rejected):
+        // 2161: Price cap applied (MKT order converted to LMT with price control)
+        // Orders with these codes will still be submitted and may fill
+        bool isWarning = (code == 2161);
 
-        // Remove failed order from internal tracking
-        m_orders.remove(id);
+        if (isWarning) {
+            LOG_WARNING(QString("Order %1 warning %2: %3").arg(id).arg(code).arg(message));
+            // Do NOT remove order - it's still active
+            // Show warning to user
+            emit warning(QString("Order %1: %2").arg(id).arg(message));
+        } else {
+            // Real error - order rejected
+            LOG_ERROR(QString("Order %1 failed with error %2: %3").arg(id).arg(code).arg(message));
 
-        // Clear pending order IDs
-        if (id == m_pendingBuyOrderId) {
-            m_pendingBuyOrderId = -1;
+            // Remove failed order from internal tracking
+            m_orders.remove(id);
+
+            // Clear pending order IDs
+            if (id == m_pendingBuyOrderId) {
+                m_pendingBuyOrderId = -1;
+            }
+            if (id == m_pendingSellOrderId) {
+                m_pendingSellOrderId = -1;
+            }
+
+            // Emit error to show in UI
+            emit error(QString("Order failed: %1").arg(message));
         }
-        if (id == m_pendingSellOrderId) {
-            m_pendingSellOrderId = -1;
-        }
-
-        // Emit error to show in UI
-        emit error(QString("Order failed: %1").arg(message));
     }
 }
 
