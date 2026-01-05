@@ -145,23 +145,22 @@ window.addEventListener('IBKR_WISHLIST_DATA', function(event) {
 
 // Extract ticker info from TradingView DOM
 async function extractTickerInfo() {
-  // Wait for DOM to be ready
-  await waitForElement('[class*="button-"][class*="apply-common-tooltip"]', 5000);
-
   try {
     const tickerData = {
       symbol: null,
       exchange: null
     };
 
-    // Extract symbol (ticker name)
-    const symbolButton = document.querySelector('[class*="uppercase-"][class*="button-"][class*="apply-common-tooltip"] div');
-    if (symbolButton) {
-      tickerData.symbol = symbolButton.textContent.trim();
+    // Wait for symbol to be ready
+    await waitForElement('span[class*="symbolName-"]', 5000);
+    const symbolSpan = document.querySelector('span[class*="symbolName-"]');
+    if (symbolSpan) {
+      tickerData.symbol = symbolSpan.textContent.trim();
     }
 
-    // Extract exchange
-    const exchangeDiv = document.querySelector('[class*="exchangeTitle-"] div');
+    // Wait for exchange to be ready (may update slower than symbol)
+    await waitForElement('[class*="exchangeTitle-"]', 5000);
+    let exchangeDiv = document.querySelector('[class*="exchangeTitle-"] div');
     if (exchangeDiv) {
       tickerData.exchange = exchangeDiv.textContent.trim();
     }
@@ -172,6 +171,8 @@ async function extractTickerInfo() {
         type: 'TICKER_CHANGED',
         data: tickerData
       }, handleMessageError('Ticker change'));
+    } else {
+      console.warn('[IBKR Extension] Failed to extract ticker data:', tickerData);
     }
   } catch (error) {
     console.error('[IBKR Extension] Error extracting ticker info:', error);
