@@ -63,9 +63,18 @@ window.addEventListener('IBKR_CHART_TOKEN', function() {
 
 // Listen for wishlist data from injected script (page context)
 window.addEventListener('IBKR_WISHLIST_DATA', function(event) {
+  // Validate event detail
+  if (!event.detail) return;
+
   const { url, data } = event.detail;
 
+  // Skip if no valid data
+  if (!data || typeof data !== 'object') return;
+
   try {
+    // Check if extension context is still valid before any chrome.runtime calls
+    if (!chrome.runtime?.id) return;
+
     // 2.1.1, 2.1.2: Custom wishlist append/remove - POST /api/v1/symbols_list/custom/{id}/append|remove/
     const customUpdateMatch = url.match(/\/api\/v1\/symbols_list\/custom\/(\d+)\/(append|remove)\//);
     if (customUpdateMatch) {
@@ -139,7 +148,10 @@ window.addEventListener('IBKR_WISHLIST_DATA', function(event) {
       }
     }
   } catch (error) {
-    console.error('[IBKR Extension] Error processing wishlist:', error);
+    // Only log if not context invalidation error
+    if (!error.message?.includes('Extension context invalidated')) {
+      console.error('[IBKR Extension] Error processing wishlist:', error);
+    }
   }
 });
 
@@ -151,16 +163,22 @@ async function extractTickerInfo() {
       exchange: null
     };
 
-    // Wait for symbol to be ready
-    await waitForElement('span[class*="symbolName-"]', 5000);
-    const symbolSpan = document.querySelector('span[class*="symbolName-"]');
+    // Try new selector first: #header-toolbar-symbol-search > span
+    let symbolSpan = document.querySelector('#header-toolbar-symbol-search > span');
+
+    // Fallback to old selector if new one doesn't work
+    if (!symbolSpan) {
+      await waitForElement('span[class*="symbolName-"]', 5000);
+      symbolSpan = document.querySelector('span[class*="symbolName-"]');
+    }
+
     if (symbolSpan) {
       tickerData.symbol = symbolSpan.textContent.trim();
     }
 
     // Wait for exchange to be ready (may update slower than symbol)
     await waitForElement('[class*="exchangeTitle-"]', 5000);
-    let exchangeDiv = document.querySelector('[class*="exchangeTitle-"] div');
+    let exchangeDiv = document.querySelector('[class*="exchangeTitle-"] > div');
     if (exchangeDiv) {
       tickerData.exchange = exchangeDiv.textContent.trim();
     }
